@@ -6,7 +6,7 @@ import socket
 import sys
 
 
-DEFAULT_HOST = os.environ.get("ROVER_PI_HOST", "192.168.50.2")
+DEFAULT_HOST = os.environ.get("ROVER_PI_HOST", "rover-pi.local")
 DEFAULT_PORT = 9998
 
 

@@ -26,13 +26,13 @@ void handleCommand(const std::string& command, MotorInterface& motor) {
         std::string unexpected;
 
         if (!(input >> speed) || input >> unexpected || speed < -1.0 || speed > 1.0) {
-            std::cerr << "[Command] Invalid SET_SPEED command: " << command << ''\n'';
+            std::cerr << "[Command] Invalid SET_SPEED command: " << command << '\n';
             return;
         }
 
         motor.setSpeed(speed);
     } else {
-        std::cerr << "[Command] Unknown command: " << command << ''\n'';
+        std::cerr << "[Command] Unknown command: " << command << '\n';
     }
 }
 
@@ -49,7 +49,7 @@ int main() {
             [&motor](const std::string& command) { handleCommand(command, motor); },
             [&motor]() { motor.stop(); });
     } catch (const std::exception& error) {
-        std::cerr << "Controller stopped: " << error.what() << ''\n'';
+        std::cerr << "Controller stopped: " << error.what() << '\n';
         return 1;
     }
 
