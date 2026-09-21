@@ -8,6 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_executable(rover_controller
     src/main.cpp
+    src/communication/TcpServer.cpp
     src/motor/MockMotor.cpp
 )
 
