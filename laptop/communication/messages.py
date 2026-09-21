@@ -13,14 +13,22 @@ class ProtocolError(ValueError):
     """Raised when a protocol message is malformed or unsupported."""
 
 
-def _finite_in_range(name: str, value: float) -> float:
+def _finite_number(name: str, value: object) -> float:
     try:
         number = float(value)
     except (TypeError, ValueError) as error:
-        raise ProtocolError(f"{name} must be a finite number in [-1.0, 1.0]") from error
+        raise ProtocolError(f"{name} must be a finite number") from error
 
-    if not math.isfinite(number) or not -1.0 <= number <= 1.0:
-        raise ProtocolError(f"{name} must be a finite number in [-1.0, 1.0]")
+    if not math.isfinite(number):
+        raise ProtocolError(f"{name} must be a finite number")
+
+    return number
+
+
+def _finite_in_range(name: str, value: object) -> float:
+    number = _finite_number(name, value)
+    if not -1.0 <= number <= 1.0:
+        raise ProtocolError(f"{name} must be in [-1.0, 1.0]")
 
     return number
 
@@ -72,3 +80,18 @@ def validate_message(message: Mapping[str, Any]) -> None:
         _finite_in_range("steer", message.get("steer"))
     elif message_type == "stop":
         return
+    elif message_type == "telemetry":
+        _finite_number("timestamp", message.get("timestamp"))
+        _finite_in_range("motor_speed", message.get("motor_speed"))
+
+        if not isinstance(message.get("mode"), str):
+            raise ProtocolError("mode must be a string")
+
+        if not isinstance(message.get("safety_state"), str):
+            raise ProtocolError("safety_state must be a string")
+
+        last_command_age = _finite_number("last_command_age", message.get("last_command_age"))
+        if last_command_age < 0.0:
+            raise ProtocolError("last_command_age must be non-negative")
+    else:
+        raise ProtocolError(f"Unsupported message type: {message_type}")
