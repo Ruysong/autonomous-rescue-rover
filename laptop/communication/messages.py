@@ -14,9 +14,11 @@ class ProtocolError(ValueError):
 
 
 def _finite_number(name: str, value: object) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ProtocolError(f"{name} must be a finite number")
     try:
         number = float(value)
-    except (TypeError, ValueError) as error:
+    except (TypeError, ValueError, OverflowError) as error:
         raise ProtocolError(f"{name} must be a finite number") from error
 
     if not math.isfinite(number):

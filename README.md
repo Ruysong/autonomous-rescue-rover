@@ -32,20 +32,23 @@ The laptop is the network server for command and telemetry channels. The Raspber
 ```text
 autonomous-rescue-rover/
 |-- laptop/                         # Laptop-side Python software
-|   `-- communication/
-|       |-- framing.py              # Length-prefixed TCP framing
-|       |-- messages.py             # Protocol JSON helpers
-|       `-- test_client.py          # Milestone 0 keyboard client
+|   `-- communication/             # Protocol, TCP listeners, operator console
 |
 |-- robot/                          # Raspberry Pi C++ runtime
 |   |-- CMakeLists.txt
 |   |-- include/
 |   |   |-- communication/
-|   |   `-- motor/
-|   `-- src/
-|       |-- communication/
-|       |-- motor/
-|       `-- main.cpp
+|   |   |-- motor/
+|   |   `-- state/
+|   |-- src/
+|   |   |-- communication/
+|   |   |-- motor/
+|   |   |-- state/
+|   |   `-- main.cpp
+|   `-- tests/                     # Pi-side runtime tests
+|
+|-- tests/                          # Laptop protocol tests
+|-- docs/                           # Build and demo instructions
 |
 `-- shared/
     `-- protocol/
@@ -61,6 +64,8 @@ autonomous-rescue-rover/
 | Video | UDP | 9999 | Raspberry Pi -> Laptop (planned) |
 
 The command and telemetry protocol uses a 4-byte big-endian length prefix followed by a UTF-8 JSON payload. The full message contract is documented in [shared/protocol/PROTOCOL.md](shared/protocol/PROTOCOL.md).
+
+Build, run, and handoff steps are in [docs/COMMUNICATION_DEMO.md](docs/COMMUNICATION_DEMO.md).
 
 ## Technology
 
