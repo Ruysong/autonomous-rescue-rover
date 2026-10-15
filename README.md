@@ -4,6 +4,12 @@ SKKU Software Capstone Design Project.
 
 A 3D-printed, six-wheel rover project for indoor disaster-site exploration. The system separates high-level operation on a laptop from low-level robot control on a Raspberry Pi.
 
+## Raspberry Pi Access
+
+Connect the Pi and your laptop to the same network, then run `ssh rover@rover-pi.local`. The Pi username is `rover`; the password is shared privately. If `.local` does not resolve, use `ssh rover@<PI_IP>` with the Pi's current IP address.
+
+The current communication demo is on the [`jh/communication-runtime` branch](https://github.com/Ruysong/autonomous-rescue-rover/tree/jh/communication-runtime); see its [run guide](https://github.com/Ruysong/autonomous-rescue-rover/blob/jh/communication-runtime/docs/COMMUNICATION_DEMO.md).
+
 ## System Architecture
 
 ```text
