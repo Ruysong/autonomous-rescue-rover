@@ -1,75 +1,38 @@
 # Autonomous Rescue Rover
 
-SKKU Software Capstone Design Project.
+SKKU Software Capstone Design Project · Fall 2026
 
-A 3D-printed, six-wheel rover project for indoor disaster-site exploration. The system separates high-level operation on a laptop from low-level robot control on a Raspberry Pi.
-
-## Raspberry Pi Access
-
-Connect the Pi and your laptop to the same network, then run `ssh rover@rover-pi.local`. The Pi username is `rover`; the password is shared privately. If `.local` does not resolve, use `ssh rover@<PI_IP>` with the Pi's current IP address.
-
-The current communication demo is on the [`jh/communication-runtime` branch](https://github.com/Ruysong/autonomous-rescue-rover/tree/jh/communication-runtime); see its [run guide](https://github.com/Ruysong/autonomous-rescue-rover/blob/jh/communication-runtime/docs/COMMUNICATION_DEMO.md).
+We are building a 3D-printed, six-wheel rover for indoor disaster exploration. The goal is to explore an unfamiliar area, identify a person or other relevant situation, move or stop safely, and report what it found to an operator.
 
 ## System Architecture
 
-```text
-Laptop (Python)
-- Operator interface
-- Perception and navigation modules
-- Command and telemetry services
-            |
-            | Command TCP 9998
-            | Telemetry TCP 9997
-            | Video UDP 9999 (planned)
-            v
-Raspberry Pi (C++17)
-- Communication runtime
-- Safety and robot state
-- Hardware interfaces
-            |
-            v
-Motors, steering, sensors, and camera
+```mermaid
+flowchart LR
+    Operator[Operator] -->|search mission| Laptop["Laptop: perception + mission decisions"]
+    Camera[Camera and sensors] --> Pi["Raspberry Pi: robot interface + local safety"]
+    Pi -->|observations + robot state| Laptop
+    Laptop -->|exploration goal| Navigation["Navigation: route + obstacle handling"]
+    Navigation -->|motion command| Pi
+    Navigation -->|progress or failure| Laptop
+    Pi --> Rover["Six-wheel drive + four-wheel steering"]
+    Laptop -->|finding or alert| Operator
 ```
 
-The laptop is the network server for command and telemetry channels. The Raspberry Pi connects as a client and remains responsible for local hardware control and communication safety.
+AI selects what to inspect next; the navigation layer computes how to get there. The robot applies commands and stops locally on communication failure. We plan to use ROS 2 for mapping and navigation, but the exact packages and execution device are still being decided. The diagram describes the target system, not a completed end-to-end implementation.
 
 ## Repository Structure
 
 ```text
 autonomous-rescue-rover/
-|-- laptop/                         # Laptop-side Python software
-|   `-- communication/
-|       |-- framing.py              # Length-prefixed TCP framing
-|       |-- messages.py             # Protocol JSON helpers
-|       `-- test_client.py          # Milestone 0 keyboard client
-|
-|-- robot/                          # Raspberry Pi C++ runtime
-|   |-- CMakeLists.txt
-|   |-- include/
-|   |   |-- communication/
-|   |   `-- motor/
-|   `-- src/
-|       |-- communication/
-|       |-- motor/
-|       `-- main.cpp
-|
-`-- shared/
-    `-- protocol/
-        `-- PROTOCOL.md            # Laptop <-> Pi communication contract
+├── laptop/            # Laptop-side Python software
+├── robot/             # Raspberry Pi C++17 software
+└── shared/protocol/   # Laptop ↔ Pi message contract
 ```
 
 ## Communication
 
-| Channel | Transport | Port | Direction |
-| --- | --- | ---: | --- |
-| Command | TCP | 9998 | Laptop server -> Raspberry Pi client |
-| Telemetry | TCP | 9997 | Raspberry Pi client -> Laptop server |
-| Video | UDP | 9999 | Raspberry Pi -> Laptop (planned) |
+The laptop and Pi communicate over Wi-Fi. Protocol v1 defines TCP command and telemetry channels using length-prefixed JSON; see [PROTOCOL.md](shared/protocol/PROTOCOL.md). Video transport, mapping, autonomous navigation, and real motor control are later integration steps.
 
-The command and telemetry protocol uses a 4-byte big-endian length prefix followed by a UTF-8 JSON payload. The full message contract is documented in [shared/protocol/PROTOCOL.md](shared/protocol/PROTOCOL.md).
+## Raspberry Pi Access
 
-## Technology
-
-- Raspberry Pi runtime: C++17 and CMake
-- Laptop-side tooling: Python
-- Protocol JSON support: nlohmann/json
+Connect the Pi and laptop to the same network, then use `ssh rover@rover-pi.local` (or the Pi's current IP address). The password is shared privately.
