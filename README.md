@@ -6,19 +6,33 @@ We are building a 3D-printed, six-wheel rover for indoor disaster exploration. T
 
 ## System Architecture
 
-```mermaid
-flowchart LR
-    Operator[Operator] -->|search mission| Laptop["Laptop: perception + mission decisions"]
-    Camera[Camera and sensors] --> Pi["Raspberry Pi: robot interface + local safety"]
-    Pi -->|observations + robot state| Laptop
-    Laptop -->|exploration goal| Navigation["Navigation: route + obstacle handling"]
-    Navigation -->|motion command| Pi
-    Navigation -->|progress or failure| Laptop
-    Pi --> Rover["Six-wheel drive + four-wheel steering"]
-    Laptop -->|finding or alert| Operator
+```text
+[Operator]  "Find a person" / review findings
+     |
+     v
++---------------- Laptop: perception and mission ----------------+
+| Camera video -> person candidate -> observation                |
+| Map + rover state -> choose next area / recheck / report       |
++----------------------------+-----------------------------------+
+                             | exploration goal
+                             v
++---------- Navigation: ROS 2 direction (host TBD) --------------+
+| LiDAR + odometry -> map/pose -> route + obstacle handling      |
++----------------------------+-----------------------------------+
+                             | motion command
+                             v
++---------------- Raspberry Pi: control and safety --------------+
+| Validate commands / return robot state / stop on timeout       |
+| Motor and steering interface                                   |
++----------------------------+-----------------------------------+
+                             v
+                   [Six-wheel, four-steer rover]
+
+Pi -> laptop/navigation: video, sensor data, robot state
+Laptop -> Pi: stop request (without waiting for navigation)
 ```
 
-AI selects what to inspect next; the navigation layer computes how to get there. The robot applies commands and stops locally on communication failure. We plan to use ROS 2 for mapping and navigation, but the exact packages and execution device are still being decided. The diagram describes the target system, not a completed end-to-end implementation.
+AI selects what to inspect next; the navigation layer computes how to get there. The robot stops locally on communication failure. The exact ROS 2 packages, execution device, and possible Pico controller are still being decided. This is the target system, not a completed end-to-end implementation.
 
 ## Repository Structure
 
