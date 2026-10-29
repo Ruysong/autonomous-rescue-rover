@@ -49,6 +49,10 @@ The laptop and Pi communicate over Wi-Fi. Protocol v1 defines TCP command and te
 
 The current command and telemetry demo is documented in [COMMUNICATION_DEMO.md](docs/COMMUNICATION_DEMO.md).
 
+## Person Search Demo
+
+The laptop demo reads a local video or webcam, confirms a person candidate, and requests a stop. See `laptop/perception/requirements.txt` for dependencies and run `python -m laptop.demo.person_search --source VIDEO.mp4 --show` from the repository root. The preview and saved video are capped at 720px high by default (`--render-height 480` makes them smaller); detection uses the original frame. The default stop and navigation cancellation are simulated. `--send-to-pi` sends a stop over the existing TCP command channel, but does not verify physical stopping.
+
 ## Raspberry Pi Access
 
 Connect the Pi and laptop to the same network, then use `ssh rover@rover-pi.local` (or the Pi's current IP address). The password is shared privately.
