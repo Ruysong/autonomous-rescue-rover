@@ -1,0 +1,43 @@
+# ROS workspace artifacts and recorded data
+**/build/
+**/install/
+**/log/
+**/bags/
+*.db3
+*.db3-shm
+*.db3-wal
+*.mcap
+*.bag
+
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Local credentials and tool configuration
+/.aws/
+/.codex/
+/.agents/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+
+# Raw video recordings
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm

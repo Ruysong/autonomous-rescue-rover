@@ -1,0 +1,35 @@
+# D-02 initial TEST settings, NOT measured safe limits or wheel alignment.
+# BCM numbers; physical header pins are documented in docs/demo_drive.md.
+[motor]
+pwm_hz = 1000
+
+[motor.left]
+pwm_bcm = 5
+dir_bcm = 6
+forward_level = -1 # Unknown. After lifted-wheel test, set to 0 or 1.
+
+[motor.right]
+pwm_bcm = 16
+dir_bcm = 20
+forward_level = -1 # Unknown. Do not assume the two sides use the same level.
+
+[steering]
+frequency_hz = 50
+settle_s = 0.5 # Initial trial delay, NOT measured settling time.
+calibrated = false # Set true only after all four centers/travel are checked.
+
+[steering.FL]
+gpio_bcm = 18
+center_us = 1500
+
+[steering.FR]
+gpio_bcm = 12
+center_us = 1500
+
+[steering.RL]
+gpio_bcm = 13
+center_us = 1500
+
+[steering.RR]
+gpio_bcm = 19
+center_us = 1500

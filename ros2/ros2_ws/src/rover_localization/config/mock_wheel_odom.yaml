@@ -1,0 +1,19 @@
+# MOCK ONLY: invented test dimensions/resolution, not measured RoverAid values.
+mock_wheel_odom:
+  ros__parameters:
+    mock_only: true
+    input_topic: /wheel_ticks
+    output_topic: /mock/odom_wheel
+    odom_frame: mock_odom
+    base_frame: mock_base_link
+    wheel_radius_m: 0.05
+    counts_per_wheel_rev: 1000
+    left_encoder_sign: 1
+    right_encoder_sign: 1
+    min_dt_s: 0.000001
+    max_gap_s: 0.5
+    max_tick_rate_per_s: 10000.0
+    # Order: x, y, z, roll, pitch, yaw. Arbitrary mock variances, not tuning.
+    pose_variances: [0.01, 1000000.0, 1000000.0, 1000000.0, 1000000.0, 1000000.0]
+    twist_variances: [0.01, 1000000.0, 1000000.0, 1000000.0, 1000000.0, 1000000.0]
+    discontinuity_variance: 1000000.0
