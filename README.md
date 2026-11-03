@@ -45,13 +45,17 @@ autonomous-rescue-rover/
 
 ## Communication
 
-The laptop and Pi communicate over Wi-Fi. Protocol v1 defines TCP command and telemetry channels using length-prefixed JSON; see [PROTOCOL.md](shared/protocol/PROTOCOL.md). Video transport, mapping, autonomous navigation, and real motor control are later integration steps.
+Protocol v1 defines TCP command and telemetry channels using length-prefixed JSON; see [PROTOCOL.md](shared/protocol/PROTOCOL.md). The live demo uses a Pi webcam HTTP stream and an opt-in GPIO motor adapter. Mapping, autonomous navigation, and steering integration remain future work.
 
 The current command and telemetry demo is documented in [COMMUNICATION_DEMO.md](docs/COMMUNICATION_DEMO.md).
 
 ## Person Search Demo
 
 The laptop demo reads a local video or webcam, confirms a person candidate, and requests a stop. See `laptop/perception/requirements.txt` for dependencies and run `python -m laptop.demo.person_search --source VIDEO.mp4 --show` from the repository root. The preview and saved video are capped at 720px high by default (`--render-height 480` makes them smaller); detection uses the original frame. The default stop and navigation cancellation are simulated. `--send-to-pi` sends a stop over the existing TCP command channel, but does not verify physical stopping.
+
+## Live Manual Drive Demo
+
+`laptop.demo.live_person_stop` shows the Pi camera feed, detects people, and gates manual forward/reverse commands. The Pi C++ runtime can use `MockMotor` or an opt-in GPIO adapter. See [LIVE_PERSON_STOP.md](docs/LIVE_PERSON_STOP.md) for the architecture, build, and run steps. Physical stopping performance has not been measured in this repository.
 
 ## Raspberry Pi Access
 

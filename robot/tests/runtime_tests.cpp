@@ -25,11 +25,17 @@ void require(bool condition, const std::string& message) {
 
 class RecordingMotor final : public MotorInterface {
 public:
-    void setSpeed(double value) override { speed = value; }
+    void setSpeed(double value) override {
+        if (failOnDrive) {
+            throw std::runtime_error("simulated GPIO failure");
+        }
+        speed = value;
+    }
     void stop() override { speed = 0.0; ++stopCount; }
 
     double speed = 0.0;
     int stopCount = 0;
+    bool failOnDrive = false;
 };
 
 void testFraming() {
@@ -91,12 +97,35 @@ void testProtocolAndSafety() {
     require(state.snapshot().safetyState == "disconnected", "disconnect state missing");
 }
 
+void testRealModeWatchdogAndFaultLatch() {
+    RecordingMotor motor;
+    rover::state::RobotState state(motor, "gpio", std::chrono::milliseconds(100));
+    const auto drive = rover::protocol::parseCommand(
+        R"({"_version":"1.0","type":"drive","throttle":0.1,"steer":0.0})");
+    state.commandConnected();
+    state.applyCommand(*rover::protocol::commandFrom(drive));
+    require(state.snapshot().mode == "gpio", "real mode telemetry was mislabeled");
+    std::this_thread::sleep_for(std::chrono::milliseconds(130));
+    state.checkCommandTimeout();
+    require(motor.speed == 0.0 && state.snapshot().safetyState == "timeout",
+            "real mode watchdog did not stop the motor");
+
+    motor.failOnDrive = true;
+    state.applyCommand(*rover::protocol::commandFrom(drive));
+    require(motor.speed == 0.0 && state.snapshot().safetyState == "hardware_fault",
+            "GPIO failure did not latch a stop");
+    motor.failOnDrive = false;
+    state.applyCommand(*rover::protocol::commandFrom(drive));
+    require(motor.speed == 0.0, "drive resumed after a latched GPIO fault");
+}
+
 }  // namespace
 
 int main() {
     try {
         testFraming();
         testProtocolAndSafety();
+        testRealModeWatchdogAndFaultLatch();
         std::cout << "robot runtime tests passed\n";
     } catch (const std::exception& error) {
         std::cerr << "robot runtime tests failed: " << error.what() << '\n';
