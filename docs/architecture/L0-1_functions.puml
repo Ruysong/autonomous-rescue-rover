@@ -5,46 +5,70 @@ skinparam shadowing false
 skinparam defaultFontName "Malgun Gothic"
 skinparam componentStyle rectangle
 skinparam ArrowFontSize 11
+top to bottom direction
 
-frame "cmp RoverAid functions" {
-  actor "operator (user)" as USER
-  rectangle "environment" as ENV
+frame "cmp RoverAid" {
+  actor "user" as USER
+
+  package "laptop" {
+    component "operator" as L_operator
+    component "mission" as L_mission
+    component "perception" as L_perception
+    component "mapping" as L_mapping
+    component "planning" as L_planning
+    component "logging" as L_logging
+  }
+
+  package "robot" {
+    component "sensing\n(LiDAR, IMU, camera)" as R_sensing
+    component "localization" as R_localization
+    component "control" as R_control
+    component "safety" as R_safety
+    component "logging" as R_logging
+  }
+
+  package "pico" {
+    component "sensing\n(encoders, ultrasonic)" as P_sensing
+    component "safety" as P_safety
+    component "motor" as P_motor
+  }
+
   rectangle "actuators\n(motors, servos)" as ACT
 
-  component "sensing" as sensing
-  component "localization" as localization
-  component "mapping" as mapping
-  component "perception" as perception
-  component "mission" as mission
-  component "planning" as planning
-  component "control" as control
-  component "safety" as safety
-  component "motor" as motor
-  component "operator" as operator
-  component "logging" as logging
+  ' laptop: decisions flow downward
+  USER --> L_operator
+  L_operator --> L_mission : start, stop, manual
+  L_mission --> L_planning : goal
+  L_mapping --> L_mission : map, pose
+  L_perception --> L_mission : detection
+  L_mapping --> L_planning : map, pose
 
-  ENV --> sensing : physical signals
-  sensing --> localization : wheel ticks, IMU
-  sensing --> mapping : scan
-  localization --> mapping : odometry
-  sensing --> perception : image, audio
-  mapping --> perception : pose
-  mapping --> mission : map, pose
-  perception --> mission : detection (map frame)
-  mission --> planning : goal
-  mapping --> planning : map, pose
-  planning --> control : path (waypoints)
-  localization --> control : odometry
-  control --> safety : drive request
-  sensing --> safety : proximity, cliff, ceiling\ntilt, wheel motion
-  safety --> motor : permitted drive
-  motor --> ACT
-  safety --> mission : safety event
-  mission --> operator : mission state, report
-  operator --> mission : start, stop, manual
-  operator --> safety : e-stop
-  USER <--> operator
-  logging .. sensing : records all flows
+  ' laptop -> robot
+  L_planning --> R_control : path (waypoints)
+  L_operator --> R_safety : e-stop
+
+  ' robot: commands flow downward
+  R_localization --> R_control : odometry
+  R_control --> R_safety : drive request
+
+  ' robot -> pico -> actuators
+  R_safety --> P_safety : drive command
+  P_safety --> P_motor : limited output
+  P_motor --> ACT
+
+  ' observations flow upward
+  P_sensing -up-> R_localization : wheel ticks
+  P_sensing -up-> R_safety : proximity, cliff\nwheel motion
+  R_sensing -up-> R_localization : IMU
+  R_sensing -up-> L_mapping : scan
+  R_sensing -up-> L_perception : image
+  R_localization -up-> L_mapping : odometry
+  R_safety -up-> L_mission : safety event
+  L_mission -up-> L_operator : state, report
+
+  ' layout only
+  L_logging -[hidden]down- R_logging
+  R_logging -[hidden]down- P_sensing
 }
 
 legend bottom right
@@ -53,5 +77,9 @@ legend bottom right
   |= 펼친 박스 | 전체 |
   |= 기준 | autonomous-rescue-rover main 4c5a4ef |
   |= 날짜 | 2026-11-13 |
+  |= 표기 | 패키지 = 레포 최상위 폴더, 박스 = 모듈 폴더 |
+  |= | 아래로 = 명령, 위로 = 관측 |
+  |= | 패키지 경계를 넘는 화살표 = communication |
+  |= | logging은 같은 기기의 모든 흐름을 기록 (선 생략) |
 endlegend
 @enduml

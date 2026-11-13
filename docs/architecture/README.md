@@ -19,17 +19,11 @@
 
 ## L0 도면
 
-| 도면 | 종류 | 내용 |
-|---|---|---|
-| [L0-1_functions.puml](L0-1_functions.puml) | cmp | 모듈과 그 사이의 흐름 (최상위) |
-| [L0-2_deployment.puml](L0-2_deployment.puml) | dpl | 모듈을 `laptop` · `robot` · `pico`에 배치 |
-| [L0-3_search_mission.puml](L0-3_search_mission.puml) | sd | 수색 미션 시간 흐름 (주 use case) |
-| [L0-4_link_loss.puml](L0-4_link_loss.puml) | sd | 통신 두절 시 동작 |
+[L0-1_functions.puml](L0-1_functions.puml) (cmp): 기기(`laptop` · `robot` · `pico`)별로 묶은 모듈과 그 사이의 흐름. 위에서 아래로 명령, 아래에서 위로 관측이 흐른다. 개발 기준으로 **기능 도면만** 그리고, 시간 흐름(미션 순서, 통신 두절)은 아래 4절 동작 규칙에 문장으로 둔다.
 
 PlantUML 소스. VS Code `jebbs.plantuml` 확장으로 미리보기 (Alt+D). 렌더링한 그림은 [`png/`](png/)에 있다 (소스를 고치면 다시 렌더링해서 같이 커밋).
 
 ![L0-1](png/L0-1_functions.png)
-![L0-2](png/L0-2_deployment.png)
 
 ## 1. 미션
 
@@ -50,7 +44,7 @@ PlantUML 소스. VS Code `jebbs.plantuml` 확장으로 미리보기 (Alt+D). 렌
 | `safety` | 통신 두절, 근접 충돌, 낭떠러지(아래 초음파), 천장 간섭(위 초음파), 전복 위험(IMU 기울기), 바퀴 걸림(엔코더 정지), 배터리 저전압, 비상정지 | `laptop/mission/manual_safety`, `robot/state` 일부 |
 | `operator` | 지도 · 영상 · 탐지 · 상태 표시, 시작 · 정지 · 수동 개입 | `laptop/demo` GUI |
 | `logging` | 주행 전체 기록, 평가 지표: 첫 발견까지 시간 · 이동거리 · 탐색 면적 (frontier 단독 vs frontier + LLM) | — |
-| `communication` | 기기 사이 경계면 (L0-2의 연결선) | `laptop/communication`, `robot/communication` |
+| `communication` | 기기 사이 경계면 (L0-1에서 패키지 경계를 넘는 화살표) | `laptop/communication`, `robot/communication` |
 
 `safety`는 흐름의 한 단계가 아니라 **모든 구동 출력 앞의 차단기**다. 상위 판단과 관계없이 `safety`가 막으면 멈춘다.
 
@@ -74,10 +68,16 @@ PlantUML 소스. VS Code `jebbs.plantuml` 확장으로 미리보기 (Alt+D). 렌
 
 ## 4. 원칙
 
-1. **통신이 끊기면 `robot`은 스스로 안전하게 멈춰 있고, 재연결되면 끊긴 동안의 위치를 이어서 넘긴다.** 그래서 `localization` · `control` · `safety`가 `robot`에 있다 (L0-4).
+1. **통신이 끊기면 `robot`은 스스로 안전하게 멈춰 있고, 재연결되면 끊긴 동안의 위치를 이어서 넘긴다.** 그래서 `localization` · `control` · `safety`가 `robot`에 있다.
 2. **`laptop`은 경로(웨이포인트)를 내려보내고, 속도 명령을 실시간으로 보내지 않는다.** Wi-Fi 지연 · 끊김이 주행 품질에 직접 들어오지 않게 한다.
 3. **`safety`는 두 겹.** `robot`(상황 판단 정지)과 `pico`(출력 제한 · 링크 타임아웃). `robot`이 멈춰도 `pico`가 멈춘다.
 4. **`pico` 시리얼은 `robot`의 프로세스 하나만 연다.** 다른 프로그램은 그 프로세스를 거친다.
+
+동작 규칙
+
+- 수색 미션: `operator` 시작 → `mission`이 frontier 중 목표 선택(LLM) → `planning` 경로 → `control` 추종. `safety` 정지가 나면 `mission`에 안전 이벤트, 재계획. `perception`이 사람 후보를 지도 좌표로 넘기면 접근 → 근접 재탐지로 확인 → 확인되면 정지 · 보고(지도 위치, 사진, 시각), 오탐지면 탐색 계속.
+- `laptop` ↔ `robot` 끊김: `robot`은 즉시 정지하고 `pico`에는 속도 0 명령을 계속 보낸다. `localization`과 raw `logging`은 계속. 재연결되면 현재 odometry와 끊긴 동안의 안전 이벤트를 넘기고, `laptop`이 `mapping`으로 위치를 보정한 뒤 재계획.
+- `robot` ↔ `pico` 끊김: `pico`가 링크 타임아웃으로 속도 0 · 조향 중립.
 
 ## 5. 경계면 (`communication`: 무엇이 오가는가만, 형식은 하위 문서)
 
@@ -96,7 +96,7 @@ PlantUML 소스. VS Code `jebbs.plantuml` 확장으로 미리보기 (Alt+D). 렌
 
 1. 모듈 목록에 빠지거나 불필요한 것.
 2. 배치 표에서 바꿔야 할 것.
-3. 통신 두절 시 동작: **즉시 정지 후 대기**(L0-4 초안) vs 마지막 연결 지점으로 복귀.
+3. 통신 두절 시 동작: **즉시 정지 후 대기**(4절 초안) vs 마지막 연결 지점으로 복귀.
 4. 사람 후보 **확인 단계**(접근 후 재탐지) 포함 여부. 빼면 첫 탐지에서 바로 정지.
 5. 조향 방식: 앞 · 뒤 반대로 꺾는 대칭 4WS(회전 반경 최소) 기본안.
 
