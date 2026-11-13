@@ -13,7 +13,10 @@
 | [A2_mission.puml](A2_mission.puml) | sd | 수색 미션 시간 흐름 (주 use case) |
 | [A3_link_loss.puml](A3_link_loss.puml) | sd | 통신 두절 시 동작 |
 
-PlantUML 소스. VS Code `jebbs.plantuml` 확장으로 미리보기 (Alt+D).
+PlantUML 소스. VS Code `jebbs.plantuml` 확장으로 미리보기 (Alt+D). 렌더링한 그림은 [`png/`](png/)에 있다 (소스를 고치면 다시 렌더링해서 같이 커밋).
+
+![A0](png/A0_functions.png)
+![A1](png/A1_allocation.png)
 
 ## 1. 미션
 
