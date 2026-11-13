@@ -1,0 +1,35 @@
+@startuml A3_link_loss
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName "Malgun Gothic"
+
+mainframe sd 통신 두절
+
+participant "노트북" as LAP
+participant "Pi" as PI
+participant "Pico" as PICO
+
+== 노트북 ↔ Pi 끊김 ==
+PI -> PI : 노트북 메시지 끊김 감지 (F6)
+PI -> PICO : 정지 (속도 0), 명령은 계속 보냄
+note right of PI
+  odometry · raw 기록은 계속
+  (끊긴 동안의 위치를 잃지 않음)
+end note
+
+== 재연결 ==
+PI -> LAP : 현재 odometry 위치 · 끊긴 동안 안전 이벤트
+LAP -> LAP : 위치 보정 (SLAM) 후 재계획
+LAP -> PI : 새 경로
+
+== Pi ↔ Pico 끊김 (Pi 멈춤 등) ==
+PICO -> PICO : 링크 타임아웃 → 속도 0 · 조향 중립 (F6)
+
+legend bottom right
+  |= 도면 | A3 |
+  |= 상위 | A1 |
+  |= 펼친 박스 | F6 보호 (통신 두절) |
+  |= 기준 | autonomous-rescue-rover main 4c5a4ef |
+  |= 날짜 | 2026-11-13 |
+endlegend
+@enduml
