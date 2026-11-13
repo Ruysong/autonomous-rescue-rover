@@ -12,7 +12,7 @@ rectangle "mission / perception" as MISSION #line.dashed
 frame "cmp navigation" {
   component "mapping\n(slam_toolbox)" <<laptop>> <<planned>> as MAP
   component "planning\n(frontier 추출, costmap + A*)" <<laptop>> <<planned>> as PLAN
-  component "state estimation\n(EKF: encoders + IMU + optical flow)" <<robot>> <<planned>> as EKF
+  component "state estimation\n(EKF: encoders + IMU\n+ optical flow (2단계))" <<robot>> <<planned>> as EKF
   component "path tracking\n(Pure Pursuit)" <<robot>> <<planned>> as TRACK
 }
 
@@ -21,7 +21,7 @@ rectangle "control / safety" as CONTROL #line.dashed
 MISSION --> PLAN : goal id
 PLAN -up-> MISSION : frontier list (id)
 
-CONTROL -up-> EKF : encoders, IMU
+CONTROL -up-> EKF : encoders, IMU\ncamera (floor region)
 CONTROL -up-> MAP : LiDAR scan
 EKF -up-> MAP : pose
 MAP --> PLAN : map, pose

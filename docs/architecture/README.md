@@ -47,7 +47,7 @@
 - 만들 것: navigation이 SLAM 지도에서 뽑은 frontier 후보에 id를 붙여 올리면, LLM이 추가 관측까지 보고 하나를 골라 그 id를 목표로 내린다. 목록에 없는 id는 검증에서 거른다.
 
 **navigation**
-- state estimation: 엔코더 + IMU + optical flow를 EKF로 합쳐 pose (`robot`).
+- state estimation: 엔코더 + IMU + optical flow(2단계)를 EKF로 합쳐 pose (`robot`).
 - mapping: LiDAR scan + pose로 지도 (slam_toolbox, `laptop`).
 - planning: 지도에서 frontier 후보 추출, 목표가 정해지면 costmap 위 A* (`laptop`).
 - path tracking: 경로 + pose로 Pure Pursuit → 움직임 명령 (v, ω) (`robot`).
@@ -77,7 +77,9 @@
 
 ## 4. 이미 정한 것
 
+- 시험 환경: 조명이 충분한 통제된 실내에서 기능을 하나씩 검증한다. 어둠은 고려하지 않는다.
 - SLAM은 `laptop` (Pi 메모리 부족).
+- optical flow: 웹캠(C270)을 아래로 20~30° 꺾어 화면 아래쪽 바닥 영역에서 계산. 카메라 높이 · 각도를 고정 · 보정하면 바닥 위 이동을 실제 거리로 환산 가능. **2단계** — EKF는 엔코더 + IMU로 먼저 만들고 다음에 붙인다. 화면 위쪽은 사람 탐지에 그대로 쓴다.
 - Pico 펌웨어와 Pi ↔ Pico 프로토콜 (PR #5).
 - 기구 실측: 트레드 중간 62.5 cm / 앞 · 뒤 56.5 cm, 휠베이스 53 cm (앞–중간 28, 중간–뒤 25).
 
