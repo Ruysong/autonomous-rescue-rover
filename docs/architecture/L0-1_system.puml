@@ -20,12 +20,12 @@ frame "cmp RoverAid" {
   MISSION -up-> OPERATOR : detection report
 
   MISSION --> NAV : goal id
-  NAV -up-> MISSION : frontier list
+  NAV -up-> MISSION : frontier list, map, pose
 
   NAV --> CONTROL : motion command
   MISSION --> CONTROL : stop request
   CONTROL -up-> NAV : sensor data, rover state
-  CONTROL -up-> MISSION : video, rover state
+  CONTROL -up-> MISSION : video, LiDAR scan, rover state
 
   CONTROL --> ROVER : motor, steer output
   ROVER -up-> CONTROL : raw sensors\n(camera, LiDAR, encoders, IMU, ultrasonic)

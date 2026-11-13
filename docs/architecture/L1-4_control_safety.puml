@@ -36,7 +36,7 @@ BRIDGE -up-> GATE : encoders, ultrasonic, flags
 GATE -up-> MISSION : rover state
 DRIVERS -up-> NAV : LiDAR scan, IMU
 BRIDGE -up-> NAV : encoders
-DRIVERS -up-> MISSION : video
+DRIVERS -up-> MISSION : video, LiDAR scan
 
 legend bottom right
   |= 도면 | L1-4 |

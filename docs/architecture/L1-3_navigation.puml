@@ -20,6 +20,7 @@ rectangle "control / safety" as CONTROL #line.dashed
 
 MISSION --> PLAN : goal id
 PLAN -up-> MISSION : frontier list (id)
+MAP -up-> MISSION : map, pose
 
 CONTROL -up-> EKF : encoders, IMU\ncamera (floor region)
 CONTROL -up-> MAP : LiDAR scan

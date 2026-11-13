@@ -32,8 +32,8 @@
 | 관계 | 아래로 (명령) | 위로 (관측 · 보고) |
 |---|---|---|
 | operator ↔ mission / perception | 임무 할당 | 발견 결과 보고 |
-| mission / perception ↔ navigation | 목표 frontier id | frontier 후보 목록 (id) |
-| mission / perception → control / safety | stop 요청 (navigation을 거치지 않음) | 영상, 로버 상태 |
+| mission / perception ↔ navigation | 목표 frontier id | frontier 후보 목록 (id), 지도, pose |
+| mission / perception → control / safety | stop 요청 (navigation을 거치지 않음) | 영상, LiDAR scan, 로버 상태 |
 | navigation ↔ control / safety | 움직임 명령 (v, ω) | 센서 데이터, 로버 상태 |
 | control / safety ↔ rover | 모터 · 조향 출력 | 센서 원본 (카메라, LiDAR, 엔코더, IMU, 초음파) |
 
@@ -43,6 +43,7 @@
 
 **mission / perception**
 - perception: 영상에서 사람이 있는가와 확률을 관측 (`PersonDetector`).
+- perception (만들 것): LiDAR 사람 후보 추적. 카메라는 정면만 보므로 360° LiDAR scan에서 지도에 없는(벽이 아닌) 점 군집을 SORT 같은 추적기로 프레임 간 묶고, 움직이면서 같은 track으로 이어지는 군집을 사람 후보로 본다. 후보 위치(지도 좌표)는 mission에 넘겨 그쪽으로 돌아 카메라로 확인하고, LLM 목표 선택의 입력으로도 쓴다. 이 때문에 근거리 LiDAR 점은 거리 기준으로 거르지 않는다 (11/2 결정).
 - mission: 관측을 보고 멈출지, 어디로 갈지 정한다 (`MissionController`). 현재 구현: 연속 3프레임 사람 → 후보, 목표 취소 + 정지.
 - 만들 것: navigation이 SLAM 지도에서 뽑은 frontier 후보에 id를 붙여 올리면, LLM이 추가 관측까지 보고 하나를 골라 그 id를 목표로 내린다. 목록에 없는 id는 검증에서 거른다.
 
