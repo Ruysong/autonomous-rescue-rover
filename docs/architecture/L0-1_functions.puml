@@ -1,0 +1,57 @@
+@startuml L0-1_functions
+!pragma layout smetana
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName "Malgun Gothic"
+skinparam componentStyle rectangle
+skinparam ArrowFontSize 11
+
+frame "cmp RoverAid functions" {
+  actor "operator (user)" as USER
+  rectangle "environment" as ENV
+  rectangle "actuators\n(motors, servos)" as ACT
+
+  component "sensing" as sensing
+  component "localization" as localization
+  component "mapping" as mapping
+  component "perception" as perception
+  component "mission" as mission
+  component "planning" as planning
+  component "control" as control
+  component "safety" as safety
+  component "motor" as motor
+  component "operator" as operator
+  component "logging" as logging
+
+  ENV --> sensing : physical signals
+  sensing --> localization : wheel ticks, IMU
+  sensing --> mapping : scan
+  localization --> mapping : odometry
+  sensing --> perception : image, audio
+  mapping --> perception : pose
+  mapping --> mission : map, pose
+  perception --> mission : detection (map frame)
+  mission --> planning : goal
+  mapping --> planning : map, pose
+  planning --> control : path (waypoints)
+  localization --> control : odometry
+  control --> safety : drive request
+  sensing --> safety : proximity, cliff, ceiling\ntilt, wheel motion
+  safety --> motor : permitted drive
+  motor --> ACT
+  safety --> mission : safety event
+  mission --> operator : mission state, report
+  operator --> mission : start, stop, manual
+  operator --> safety : e-stop
+  USER <--> operator
+  logging .. sensing : records all flows
+}
+
+legend bottom right
+  |= 도면 | L0-1 |
+  |= 상위 | 없음 (최상위) |
+  |= 펼친 박스 | 전체 |
+  |= 기준 | autonomous-rescue-rover main 4c5a4ef |
+  |= 날짜 | 2026-11-13 |
+endlegend
+@enduml

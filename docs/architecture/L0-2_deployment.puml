@@ -1,0 +1,69 @@
+@startuml L0-2_deployment
+!pragma layout smetana
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName "Malgun Gothic"
+skinparam ArrowFontSize 11
+top to bottom direction
+
+frame "dpl RoverAid deployment" {
+  actor "operator (user)" as USER
+
+  node "laptop" as laptop {
+    rectangle "mapping\n(SLAM)" as L_mapping
+    rectangle "perception" as L_perception
+    rectangle "mission\n(frontier + LLM)" as L_mission
+    rectangle "planning" as L_planning
+    rectangle "operator" as L_operator
+    rectangle "logging" as L_logging
+    rectangle "communication" as L_comm
+    L_mapping -[hidden]right- L_perception
+    L_perception -[hidden]right- L_mission
+    L_mission -[hidden]right- L_planning
+    L_mapping -[hidden]down- L_operator
+    L_operator -[hidden]right- L_logging
+    L_logging -[hidden]right- L_comm
+  }
+
+  node "robot (Raspberry Pi 4)" as robot {
+    rectangle "devices\nLiDAR, IMU, camera (mic)" as R_dev
+    rectangle "sensing" as R_sensing
+    rectangle "localization\n(odometry)" as R_localization
+    rectangle "control\n(path tracking, kinematics)" as R_control
+    rectangle "safety" as R_safety
+    rectangle "logging\n(raw)" as R_logging
+    rectangle "communication" as R_comm
+    R_dev -[hidden]right- R_sensing
+    R_sensing -[hidden]right- R_localization
+    R_localization -[hidden]right- R_control
+    R_dev -[hidden]down- R_safety
+    R_safety -[hidden]right- R_logging
+    R_logging -[hidden]right- R_comm
+  }
+
+  node "pico (Pico 2)" as pico {
+    rectangle "devices\nencoders ×2, ultrasonic ×4\nmotor driver, servos ×4" as P_dev
+    rectangle "sensing\n(encoders, ultrasonic)" as P_sensing
+    rectangle "motor\n(PWM)" as P_motor
+    rectangle "safety\n(limits, link timeout)" as P_safety
+    P_dev -[hidden]right- P_sensing
+    P_sensing -[hidden]right- P_motor
+    P_motor -[hidden]right- P_safety
+  }
+
+  rectangle "actuators\nmotors ×6 (L/R channels), servos ×4" as ACT
+
+  USER <-down-> laptop : screen, commands
+  laptop <-down-> robot : communication: Wi-Fi (Tailscale)\n↑ sensor summary, pose, status, safety events, video\n↓ path, mode, stop
+  robot <-down-> pico : USB serial\n↓ drive command\n↑ encoders, ultrasonic, flags
+  pico -down-> ACT
+}
+
+legend bottom right
+  |= 도면 | L0-2 |
+  |= 상위 | L0-1 |
+  |= 펼친 박스 | 전체 (배치 관점) |
+  |= 기준 | autonomous-rescue-rover main 4c5a4ef |
+  |= 날짜 | 2026-11-13 |
+endlegend
+@enduml
