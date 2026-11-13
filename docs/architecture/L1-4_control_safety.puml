@@ -1,0 +1,51 @@
+@startuml L1-4_control_safety
+!pragma layout smetana
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName "Malgun Gothic"
+skinparam componentStyle rectangle
+skinparam ArrowFontSize 11
+top to bottom direction
+
+rectangle "navigation" as NAV #line.dashed
+rectangle "mission / perception" as MISSION #line.dashed
+
+frame "cmp control / safety" {
+  component "Command Gate\n(검증·적용, 끊기면 정지, 상태 보고)" <<robot>> as GATE
+  component "kinematics\n(v, ω → 좌우 속도 + 조향 4개)" <<robot>> <<planned>> as IK
+  package "Hardware Interface" {
+    component "PicoBridge" <<robot>> <<planned>> as BRIDGE
+    component "Sensor Drivers\n(LiDAR, IMU, camera)" <<robot>> as DRIVERS
+  }
+  component "Realtime Controller\n(pico/main.py)" <<pico>> as RT
+}
+
+rectangle "rover\n(motors, servos, sensors)" as ROVER #line.dashed
+
+NAV --> GATE : motion command (v, ω)
+MISSION --> GATE : stop request
+GATE --> IK : validated command
+IK --> BRIDGE : wheel speeds, steer angles
+BRIDGE --> RT : USB serial C / E / R
+RT --> ROVER : PWM (motors, servos)
+
+ROVER -up-> RT : encoders, ultrasonic
+RT -up-> BRIDGE : S telemetry
+ROVER -up-> DRIVERS : LiDAR, IMU, camera
+BRIDGE -up-> GATE : encoders, ultrasonic, flags
+GATE -up-> MISSION : rover state
+DRIVERS -up-> NAV : LiDAR scan, IMU
+BRIDGE -up-> NAV : encoders
+DRIVERS -up-> MISSION : video
+
+legend bottom right
+  |= 도면 | L1-4 |
+  |= 상위 | L0-1 |
+  |= 펼친 박스 | control / safety |
+  |= 기준 | jh/live-person-stop 791f82b (robot/), yw/hardware-interface (pico/) |
+  |= 날짜 | 2026-11-14 |
+  |= 표기 | 점선 = 이웃 L0 박스, <<planned>> = 새로 만듦 |
+  |= | 역기구학은 ROS 관례대로 control / safety에서 |
+  |= | Sensor Drivers 중 camera는 현재 hw_test/cam_stream.py |
+endlegend
+@enduml

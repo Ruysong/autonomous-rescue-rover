@@ -1,0 +1,43 @@
+@startuml L1-2_mission_perception
+!pragma layout smetana
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName "Malgun Gothic"
+skinparam componentStyle rectangle
+skinparam ArrowFontSize 11
+top to bottom direction
+
+rectangle "operator" as OPERATOR #line.dashed
+
+frame "cmp mission / perception" {
+  component "PersonDetector\n(perception/person_detector.py)" <<laptop>> as DETECT
+  component "MissionController\n(mission/controller.py)" <<laptop>> as MC
+  component "frontier selector\n(LLM)" <<laptop>> <<planned>> as LLM
+}
+
+rectangle "navigation" as NAV #line.dashed
+rectangle "control / safety" as CONTROL #line.dashed
+
+OPERATOR --> MC : mission assignment
+MC -up-> OPERATOR : detection report
+
+CONTROL -up-> DETECT : video
+DETECT --> MC : PersonObservation\n(person?, confidence)
+CONTROL -up-> MC : rover state
+
+NAV -up-> LLM : frontier list (id)
+MC --> LLM : observations, mission state
+LLM --> MC : chosen frontier id
+MC --> NAV : goal id / cancel goal
+MC --> CONTROL : stop request
+
+legend bottom right
+  |= 도면 | L1-2 |
+  |= 상위 | L0-1 |
+  |= 펼친 박스 | mission / perception |
+  |= 기준 | jh/live-person-stop 791f82b (laptop/mission, laptop/perception) |
+  |= 날짜 | 2026-11-14 |
+  |= 현재 구현 | MissionController: 연속 3프레임 사람 → 후보, 목표 취소 + 정지 |
+  |= 표기 | 점선 = 이웃 L0 박스, <<planned>> = 새로 만듦 |
+endlegend
+@enduml

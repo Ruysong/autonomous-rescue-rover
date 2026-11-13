@@ -1,0 +1,42 @@
+@startuml L0-1_system
+!pragma layout smetana
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName "Malgun Gothic"
+skinparam componentStyle rectangle
+skinparam ArrowFontSize 11
+top to bottom direction
+
+frame "cmp RoverAid" {
+  actor "user" as USER
+  component "operator" as OPERATOR
+  component "mission / perception" as MISSION
+  component "navigation" as NAV
+  component "control / safety" as CONTROL
+  rectangle "rover\n(motors, servos, sensors)" as ROVER
+
+  USER --> OPERATOR
+  OPERATOR --> MISSION : mission assignment
+  MISSION -up-> OPERATOR : detection report
+
+  MISSION --> NAV : goal id
+  NAV -up-> MISSION : frontier list
+
+  NAV --> CONTROL : motion command
+  MISSION --> CONTROL : stop request
+  CONTROL -up-> NAV : sensor data, rover state
+  CONTROL -up-> MISSION : video, rover state
+
+  CONTROL --> ROVER : motor, steer output
+  ROVER -up-> CONTROL : raw sensors\n(camera, LiDAR, encoders, IMU, ultrasonic)
+}
+
+legend bottom right
+  |= 도면 | L0-1 |
+  |= 상위 | 없음 (최상위) |
+  |= 펼친 박스 | 전체 |
+  |= 기준 | autonomous-rescue-rover main 4c5a4ef |
+  |= 날짜 | 2026-11-14 |
+  |= 표기 | 아래로 = 명령, 위로 = 관측·보고 |
+endlegend
+@enduml
