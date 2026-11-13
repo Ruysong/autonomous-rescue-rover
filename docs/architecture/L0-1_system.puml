@@ -19,7 +19,7 @@ frame "cmp RoverAid" {
   OPERATOR --> MISSION : mission assignment
   MISSION -up-> OPERATOR : detection report
 
-  MISSION --> NAV : goal id
+  MISSION --> NAV : goal id, moving tracks
   NAV -up-> MISSION : frontier list, map, pose
 
   NAV --> CONTROL : motion command

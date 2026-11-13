@@ -18,7 +18,8 @@ frame "cmp navigation" {
 
 rectangle "control / safety" as CONTROL #line.dashed
 
-MISSION --> PLAN : goal id
+MISSION --> PLAN : goal id\nmoving tracks (costmap 여유)
+MISSION --> MAP : moving tracks (지도에서 제외)
 PLAN -up-> MISSION : frontier list (id)
 MAP -up-> MISSION : map, pose
 

@@ -11,7 +11,7 @@ rectangle "operator" as OPERATOR #line.dashed
 
 frame "cmp mission / perception" {
   component "PersonDetector\n(perception/person_detector.py)" <<laptop>> as DETECT
-  component "LiDAR candidate tracker\n(지도에 없는 점 군집 → SORT 추적\n움직이는 track = 사람 후보)" <<laptop>> <<planned>> as TRACKER
+  component "moving object tracker\n(LiDAR: 지도에 없는 점 군집 → SORT 추적)" <<laptop>> <<planned>> as TRACKER
   component "MissionController\n(mission/controller.py)" <<laptop>> as MC
   component "frontier selector\n(LLM)" <<laptop>> <<planned>> as LLM
 }
@@ -28,7 +28,8 @@ CONTROL -up-> MC : rover state
 
 CONTROL -up-> TRACKER : LiDAR scan
 NAV -up-> TRACKER : map, pose
-TRACKER --> MC : person candidates (map frame)
+TRACKER --> MC : moving tracks → person candidates
+TRACKER --> NAV : moving tracks
 TRACKER --> LLM : person candidates (map frame)
 
 NAV -up-> LLM : frontier list (id)
