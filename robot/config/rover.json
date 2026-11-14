@@ -1,5 +1,5 @@
 {
-  "_comment": "RoverAid robot config. Units: m, deg, ms. Wheel order FL, FR, RL, RR. Measured: tread and wheelbase (11/14). To measure: max_wheel_speed_mps, motor_sign, steering sign/trim, servo range.",
+  "_comment": "RoverAid robot config. Units: m, deg, ms. Wheel order FL, FR, RL, RR. Measured: tread and wheelbase (11/14). To measure: max_wheel_speed_mps, motor_sign, steering sign/trim, servo range. Autonomy (11/14): counts_per_meter, lidar yaw_offset/direction, imu yaw_sign are placeholders to check on site (docs/AUTONOMY.md).",
   "geometry": {
     "x_front_m": 0.28,
     "x_rear_m": -0.25,
@@ -24,5 +24,40 @@
     "steer_rate_deg_s": 180,
     "steer_margin_ms": 200,
     "idle_after_stop_ms": 1000
+  },
+  "odometry": {
+    "counts_per_meter": 875,
+    "use_imu": true
+  },
+  "lidar": {
+    "x_m": 0.18,
+    "y_m": -0.1275,
+    "yaw_offset_deg": 0,
+    "direction": -1,
+    "min_range_m": 0.1,
+    "max_range_m": 12.0
+  },
+  "imu": {
+    "enabled": true,
+    "bus": "/dev/i2c-1",
+    "address": 41,
+    "axis_map_config": 36,
+    "axis_map_sign": 3,
+    "yaw_sign": -1
+  },
+  "follower": {
+    "lookahead_m": 0.5,
+    "cruise_speed_mps": 0.1,
+    "min_speed_mps": 0.05,
+    "reverse_speed_mps": 0.06,
+    "goal_tolerance_m": 0.25,
+    "turn_around_deg": 100,
+    "resume_forward_deg": 45,
+    "max_reverse_m": 0.8,
+    "body_front_m": 0.36,
+    "body_rear_m": -0.32,
+    "body_half_width_m": 0.36,
+    "stop_distance_m": 0.25,
+    "scan_max_age_s": 0.5
   }
 }

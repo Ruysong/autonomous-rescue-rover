@@ -1,4 +1,4 @@
-"""JSON message helpers for Robot Communication Protocol v1.1 (v1.0 still accepted)."""
+"""JSON message helpers for Robot Communication Protocol v1.2 (v1.0 / v1.1 still accepted)."""
 
 from __future__ import annotations
 
@@ -6,9 +6,10 @@ import json
 import math
 from typing import Any, Mapping
 
-PROTOCOL_VERSION = "1.1"
-SUPPORTED_VERSIONS = {"1.0", "1.1"}
+PROTOCOL_VERSION = "1.2"
+SUPPORTED_VERSIONS = {"1.0", "1.1", "1.2"}
 V11_TYPES = {"motion", "set_mode", "estop", "resume"}
+V12_TYPES = {"path", "pose_correction", "scan"}
 STEER_MODES = {"normal", "spin"}
 CONTROL_MODES = {"manual", "autonomous"}
 
@@ -97,6 +98,27 @@ def make_resume() -> dict[str, str]:
     return {"_version": PROTOCOL_VERSION, "type": "resume"}
 
 
+def make_path(points, path_id: int, speed: float = 0.0) -> dict[str, object]:
+    """Map-frame waypoints [[x, y], ...] for the robot Pure Pursuit; [] cancels the path."""
+    message = {
+        "_version": PROTOCOL_VERSION,
+        "type": "path",
+        "id": int(path_id),
+        "speed": float(speed),
+        "points": [[round(float(x), 3), round(float(y), 3)] for x, y in points],
+    }
+    validate_message(message)
+    return message
+
+
+def make_pose_correction(x: float, y: float, yaw: float) -> dict[str, object]:
+    """map <- odom transform from SLAM."""
+    message = {"_version": PROTOCOL_VERSION, "type": "pose_correction",
+               "x": float(x), "y": float(y), "yaw": float(yaw)}
+    validate_message(message)
+    return message
+
+
 def encode_message(message: Mapping[str, Any]) -> bytes:
     validate_message(message)
     return json.dumps(message, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
@@ -124,8 +146,10 @@ def validate_message(message: Mapping[str, Any]) -> None:
     if not isinstance(message_type, str):
         raise ProtocolError("Message type must be a string")
 
-    if message_type in V11_TYPES and version != "1.1":
+    if message_type in V11_TYPES and version not in ("1.1", "1.2"):
         raise ProtocolError(f"{message_type} needs protocol 1.1")
+    if message_type in V12_TYPES and version != "1.2":
+        raise ProtocolError(f"{message_type} needs protocol 1.2")
 
     if message_type == "drive":
         _finite_in_range("throttle", message.get("throttle"))
@@ -143,6 +167,33 @@ def validate_message(message: Mapping[str, Any]) -> None:
     elif message_type == "set_mode":
         if message.get("mode") not in CONTROL_MODES:
             raise ProtocolError("mode must be manual or autonomous")
+    elif message_type == "path":
+        _bounded("id", message.get("id"), 1e9)
+        speed = _finite_number("speed", message.get("speed", 0.0))
+        if not 0.0 <= speed <= 0.5:
+            raise ProtocolError("speed must be in [0, 0.5]")
+        points = message.get("points")
+        if not isinstance(points, list) or len(points) > 2000:
+            raise ProtocolError("points must be a list of [x, y] (max 2000)")
+        for point in points:
+            if not isinstance(point, (list, tuple)) or len(point) != 2:
+                raise ProtocolError("points must be a list of [x, y]")
+            _bounded("x", point[0], 1000.0)
+            _bounded("y", point[1], 1000.0)
+    elif message_type == "pose_correction":
+        _bounded("x", message.get("x"), 1000.0)
+        _bounded("y", message.get("y"), 1000.0)
+        _bounded("yaw", message.get("yaw"), 10.0)
+    elif message_type == "scan":
+        _finite_number("timestamp", message.get("timestamp"))
+        pose = message.get("odom_pose")
+        if not isinstance(pose, list) or len(pose) != 3:
+            raise ProtocolError("odom_pose must be [x, y, yaw]")
+        for value in pose:
+            _finite_number("odom_pose", value)
+        ranges = message.get("ranges_mm")
+        if not isinstance(ranges, list) or len(ranges) != 360:
+            raise ProtocolError("ranges_mm must have 360 values")
     elif message_type == "telemetry":
         _finite_number("timestamp", message.get("timestamp"))
         _finite_in_range("motor_speed", message.get("motor_speed"))

@@ -93,6 +93,50 @@ RoverConfig loadConfig(const std::string& path) {
         out.steerMargin = millis(g, "steer_margin_ms", out.steerMargin);
         out.idleAfterStop = millis(g, "idle_after_stop_ms", out.idleAfterStop);
     }
+    config.odometry.yMid = config.geometry.yMid;
+    if (root.contains("odometry")) {
+        const Json& o = root["odometry"];
+        auto& out = config.odometry;
+        out.countsPerMeter = number(o, "counts_per_meter", out.countsPerMeter, 10, 1e6);
+        out.useImu = o.value("use_imu", out.useImu);
+    }
+    if (root.contains("lidar")) {
+        const Json& l = root["lidar"];
+        auto& out = config.lidar;
+        out.x = number(l, "x_m", out.x, -1, 1);
+        out.y = number(l, "y_m", out.y, -1, 1);
+        out.yawOffsetDeg = number(l, "yaw_offset_deg", out.yawOffsetDeg, -360, 360);
+        out.direction = number(l, "direction", out.direction, -1, 1);
+        out.minRangeM = number(l, "min_range_m", out.minRangeM, 0, 2);
+        out.maxRangeM = number(l, "max_range_m", out.maxRangeM, 1, 40);
+    }
+    if (root.contains("imu")) {
+        const Json& i = root["imu"];
+        auto& out = config.imu;
+        out.enabled = i.value("enabled", out.enabled);
+        out.bus = i.value("bus", out.bus);
+        out.address = static_cast<int>(number(i, "address", out.address, 0x08, 0x77));
+        out.axisMapConfig = static_cast<int>(number(i, "axis_map_config", out.axisMapConfig, 0, 0x3F));
+        out.axisMapSign = static_cast<int>(number(i, "axis_map_sign", out.axisMapSign, 0, 7));
+        out.yawSign = number(i, "yaw_sign", out.yawSign, -1, 1);
+    }
+    if (root.contains("follower")) {
+        const Json& f = root["follower"];
+        auto& out = config.follower;
+        out.lookahead = number(f, "lookahead_m", out.lookahead, 0.1, 3);
+        out.cruiseSpeed = number(f, "cruise_speed_mps", out.cruiseSpeed, 0.01, 0.5);
+        out.minSpeed = number(f, "min_speed_mps", out.minSpeed, 0.01, 0.5);
+        out.reverseSpeed = number(f, "reverse_speed_mps", out.reverseSpeed, 0.01, 0.3);
+        out.goalTolerance = number(f, "goal_tolerance_m", out.goalTolerance, 0.05, 2);
+        out.turnAroundDeg = number(f, "turn_around_deg", out.turnAroundDeg, 60, 180);
+        out.resumeForwardDeg = number(f, "resume_forward_deg", out.resumeForwardDeg, 5, 90);
+        out.maxReverseM = number(f, "max_reverse_m", out.maxReverseM, 0.1, 3);
+        out.bodyFront = number(f, "body_front_m", out.bodyFront, 0, 2);
+        out.bodyRear = number(f, "body_rear_m", out.bodyRear, -2, 0);
+        out.bodyHalfWidth = number(f, "body_half_width_m", out.bodyHalfWidth, 0.05, 2);
+        out.stopDistance = number(f, "stop_distance_m", out.stopDistance, 0.05, 2);
+        out.scanMaxAge = number(f, "scan_max_age_s", out.scanMaxAge, 0.1, 5);
+    }
     return config;
 }
 

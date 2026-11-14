@@ -1,4 +1,4 @@
-# Robot Communication Protocol v1 (v1.1 additions at the end)
+# Robot Communication Protocol v1 (v1.1 and v1.2 additions at the end)
 
 ## Scope
 
@@ -136,3 +136,46 @@ sudo apt install nlohmann-json3-dev
 - `mode`: `pico` (real Pico) or `mock`. `safety_state`: `normal`, `stopped`, `timeout`, `estop`, `disconnected`, `switching` (brake -> steer before a steer-mode change), `rejected`.
 - `steer_deg` and `ultrasonic_cm` are in FL, FR, RL, RR order. `pico.flags` as in docs/HARDWARE_INTERFACE.md.
 - Sent at 10 Hz.
+
+## v1.2 additions (2026-11-15, yw/autonomy)
+
+`_version` `"1.2"` is required for the types below; v1.0 / v1.1 messages are still accepted. The robot now sends `"1.2"` telemetry and a second message type, `scan`, on the same telemetry connection.
+
+### Path (laptop -> robot)
+
+```json
+{"_version": "1.2", "type": "path", "id": 12, "speed": 0.10, "points": [[0.0, 0.0], [0.15, 0.02]]}
+```
+
+- Map-frame waypoints for the robot Pure Pursuit (max 2000, |x|, |y| <= 1000 m). `speed` [m/s, 0..0.5], 0 = robot default.
+- Followed only while the control mode is `autonomous` (the tracker feeds the gate with `source: autonomous` at 20 Hz).
+- An empty `points` list cancels the path and stops. `stop` and `estop` also cancel it.
+
+### Pose correction (laptop -> robot)
+
+```json
+{"_version": "1.2", "type": "pose_correction", "x": 0.16, "y": -0.01, "yaw": 0.044}
+```
+
+- The map <- odom transform from the laptop SLAM: `map_pose = correction * odom_pose`. Sent about 5 Hz.
+
+### Scan (robot -> laptop)
+
+```json
+{"_version": "1.2", "type": "scan", "timestamp": 1.0, "seq": 42, "odom_pose": [0.0, 0.0, 0.0],
+ "angle_increment_deg": 1, "ranges_mm": [0, 1520, "... 360 values"]}
+```
+
+- One LiDAR revolution (~10 Hz) already in the robot frame: bin i = i deg CCW from +x (forward), origin at the middle-axle centre, nearest return in mm, 0 = no return.
+- `odom_pose` [x, y, yaw] is the robot odometry at the scan time.
+
+### Telemetry (v1.2 fields)
+
+```json
+{"odom_pose": [1.2, 0.3, 0.1], "map_pose": [1.25, 0.28, 0.12], "odom_distance": 4.2,
+ "sensors": {"imu": true, "lidar": true},
+ "follow": {"state": "following", "path_id": 12, "remaining": 2.3}}
+```
+
+- `follow.state`: `idle`, `following`, `reversing` (3-point turn: the next point is behind), `blocked` (LiDAR return in the stop box ahead / behind), `no_scan` (LiDAR stale, stopped), `reached`.
+- Telemetry is now sent at 10 Hz alongside scans (the robot loop runs at 20 Hz and sends telemetry every other tick).

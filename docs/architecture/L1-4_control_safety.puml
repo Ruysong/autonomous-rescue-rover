@@ -16,7 +16,7 @@ frame "cmp control / safety" {
   component "Kinematics\n(v, κ / ω → 좌우 duty + 조향 4개,\nconfig/rover.json)" <<robot>> as IK
   package "Hardware Interface" {
     component "PicoBridge\n(시리얼 단독 사용, 20 Hz)" <<robot>> as BRIDGE
-    component "Sensor Drivers\n(LiDAR, IMU, camera)" <<robot>> as DRIVERS
+    component "Sensor Drivers\n(Lidar.cpp C1 / mock, Imu.cpp BNO055,\ncamera = cam_stream.py)" <<robot>> as DRIVERS
   }
   component "Realtime Controller\n(pico/main.py)" <<pico>> as RT
 }
@@ -37,7 +37,7 @@ ROVER -up-> DRIVERS : LiDAR, IMU, camera
 BRIDGE -up-> GATE : encoders, ultrasonic, flags
 GATE -up-> MISSION : rover state
 GATE -up-> OPERATOR : telemetry
-DRIVERS -up-> NAV : LiDAR scan, IMU
+DRIVERS -up-> NAV : LiDAR scan, IMU yaw
 BRIDGE -up-> NAV : encoders
 DRIVERS -up-> MISSION : video, LiDAR scan
 
@@ -45,10 +45,9 @@ legend bottom right
   |= 도면 | L1-4 |
   |= 상위 | L0-1 |
   |= 펼친 박스 | control / safety |
-  |= 기준 | yw/teleop (robot/src/control, robot/src/hardware, pico/) |
-  |= 날짜 | 2026-11-14 |
+  |= 기준 | yw/autonomy (robot/src/control, robot/src/hardware, pico/) |
+  |= 날짜 | 2026-11-15 |
   |= 표기 | 점선 = 이웃 L0 박스 |
   |= | 역기구학은 ROS 관례대로 control / safety에서 |
-  |= | Sensor Drivers 중 camera는 현재 hw_test/cam_stream.py |
 endlegend
 @enduml

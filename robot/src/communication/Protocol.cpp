@@ -74,7 +74,7 @@ CommandParseResult parseCommand(const std::string& payload) {
         }
 
         const std::string version = message["_version"].get<std::string>();
-        if (version != kVersion && version != kLegacyVersion) {
+        if (version != kVersion && version != kV11 && version != kLegacyVersion) {
             return invalid("Unsupported protocol version");
         }
 
@@ -141,6 +141,47 @@ CommandParseResult parseCommand(const std::string& payload) {
             return valid(ResumeCommand{});
         }
 
+        if (version == kV11) {
+            return invalid("Unsupported command type");
+        }
+
+        if (type == "path") {
+            PathCommand path;
+            double id = 0.0;
+            if (!readNumber(message, "id", 1e9, id, true) ||
+                !readNumber(message, "speed", 0.5, path.speed, false) || path.speed < 0.0) {
+                return invalid("path needs id and 0 <= speed <= 0.5");
+            }
+            path.id = static_cast<int>(id);
+            if (!message.contains("points") || !message["points"].is_array() ||
+                message["points"].size() > 2000) {
+                return invalid("path.points must be an array of [x, y] (max 2000)");
+            }
+            for (const auto& p : message["points"]) {
+                if (!p.is_array() || p.size() != 2 || !p[0].is_number() || !p[1].is_number()) {
+                    return invalid("path.points must be an array of [x, y]");
+                }
+                const double x = p[0].get<double>();
+                const double y = p[1].get<double>();
+                if (!std::isfinite(x) || !std::isfinite(y) || std::fabs(x) > 1000 ||
+                    std::fabs(y) > 1000) {
+                    return invalid("path point out of range");
+                }
+                path.points.emplace_back(x, y);
+            }
+            return valid(path);
+        }
+
+        if (type == "pose_correction") {
+            PoseCorrectionCommand c;
+            if (!readNumber(message, "x", 1000, c.x, true) ||
+                !readNumber(message, "y", 1000, c.y, true) ||
+                !readNumber(message, "yaw", 10, c.yaw, true)) {
+                return invalid("pose_correction needs finite x, y, yaw");
+            }
+            return valid(c);
+        }
+
         return invalid("Unsupported command type");
     } catch (const Json::exception& error) {
         return invalid(std::string("Invalid JSON: ") + error.what());
@@ -167,8 +208,27 @@ std::string serializeTelemetry(const Telemetry& t) {
         {"limits",
          {{"max_curvature", t.maxCurvature}, {"max_speed", t.maxSpeed},
           {"spin_enabled", t.spinEnabled}}},
+        {"odom_pose", t.odomPose},
+        {"map_pose", t.mapPose},
+        {"odom_distance", t.odomDistance},
+        {"sensors", {{"imu", t.imuOk}, {"lidar", t.lidarOk}}},
+        {"follow", {{"state", t.followState}, {"path_id", t.pathId},
+                    {"remaining", t.pathRemaining}}},
     };
 
+    return message.dump();
+}
+
+std::string serializeScan(const ScanMessage& s) {
+    const Json message = {
+        {"_version", kVersion},
+        {"type", "scan"},
+        {"timestamp", s.timestamp},
+        {"seq", s.sequence},
+        {"odom_pose", s.odomPose},
+        {"angle_increment_deg", 1},
+        {"ranges_mm", s.rangesMm},
+    };
     return message.dump();
 }
 

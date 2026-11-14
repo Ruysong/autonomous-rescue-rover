@@ -1,7 +1,9 @@
 // rover_controller: robot-side runtime (control / safety block).
 //
 //   laptop --TCP 9998 commands--> [Command Gate] -> [kinematics] -> [PicoBridge] --USB--> Pico
-//   laptop <--TCP 9997 telemetry-- gate status + Pico telemetry
+//   laptop <--TCP 9997 telemetry-- gate status + Pico telemetry + pose, and LiDAR scans
+//   autonomy: odometry (encoders + IMU) -> map pose (laptop correction) -> PathFollower ->
+//             Command Gate (source autonomous)
 //
 // The Pi connects out to the laptop (laptop runs the listeners).
 
@@ -11,7 +13,12 @@
 #include "control/CommandGate.hpp"
 #include "control/Config.hpp"
 #include "control/Kinematics.hpp"
+#include "hardware/Imu.hpp"
+#include "hardware/Lidar.hpp"
 #include "hardware/PicoBridge.hpp"
+#include "navigation/Odometry.hpp"
+#include "navigation/PathFollower.hpp"
+#include "navigation/Pose.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -19,9 +26,12 @@
 #include <cmath>
 #include <csignal>
 #include <cstdint>
+#include <deque>
 #include <exception>
 #include <iostream>
 #include <memory>
+#include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -48,6 +58,8 @@ struct Settings {
     std::string pico = "/dev/ttyACM0";
     std::string configPath = ROVER_DEFAULT_CONFIG;
     double maxDuty = -1.0;  // < 0: use config
+    std::string lidar;      // empty: /dev/ttyUSB0, or mock with --pico mock
+    std::string imu;        // empty: config, "off" disables
 };
 
 void printUsage() {
@@ -55,6 +67,7 @@ void printUsage() {
                  "[--telemetry-port 9997]\n"
                  "                        [--pico /dev/ttyACM0|mock] [--config rover.json] "
                  "[--max-duty 0..0.6]\n"
+                 "                        [--lidar /dev/ttyUSB0|mock|off] [--imu on|off]\n"
                  "  --max-duty 0 = dry run: steering moves, wheels never get duty.\n";
 }
 
@@ -94,6 +107,11 @@ bool parseArgs(int argc, char* argv[], Settings& settings) {
                 settings.maxDuty > 0.6) {
                 throw std::invalid_argument("--max-duty must be in [0, 0.6]");
             }
+        } else if (option == "--lidar") {
+            settings.lidar = value;
+        } else if (option == "--imu") {
+            if (value != "on" && value != "off") throw std::invalid_argument("--imu on|off");
+            settings.imu = value;
         } else {
             throw std::invalid_argument("Unknown option: " + option);
         }
@@ -108,8 +126,31 @@ class Runtime {
 public:
     Runtime(Settings settings, rover::control::RoverConfig config)
         : settings_(std::move(settings)),
+          config_(config),
           gate_(config.geometry, config.gate),
-          pico_(rover::hardware::makePicoLink(settings_.pico)) {}
+          pico_(rover::hardware::makePicoLink(settings_.pico)),
+          odometry_(config.odometry) {
+        namespace hw = rover::hardware;
+        follower_.config = config.follower;
+        follower_.maxCurvature = rover::control::maxCurvature(config.geometry);
+        const bool mockPico = settings_.pico == "mock";
+        std::string lidar = settings_.lidar;
+        if (lidar.empty()) lidar = mockPico ? "mock" : "/dev/ttyUSB0";
+        if (lidar == "mock") {
+            lidar_ = std::make_unique<hw::MockLidar>([this] { return truePose(); },
+                                                     hw::defaultMockWorld());
+        } else if (lidar != "off") {
+            lidar_ = std::make_unique<hw::RplidarC1>(lidar, config.lidar);
+        }
+        const bool imuOn = settings_.imu.empty() ? (config.imu.enabled && !mockPico)
+                                                 : settings_.imu == "on";
+        if (imuOn) imu_ = std::make_unique<hw::Bno055>(config.imu);
+    }
+
+    rover::navigation::Pose2D truePose() const {
+        std::lock_guard<std::mutex> lock(poseMutex_);
+        return truth_;
+    }
 
     void applyCommand(const rover::protocol::Command& command) {
         using namespace rover::protocol;
@@ -137,13 +178,35 @@ public:
                 rc::controlModeFrom(value.mode, mode);
                 gate_.setControlMode(mode, now);
                 std::cout << "[Gate] Control mode: " << value.mode << '\n';
+            } else if constexpr (std::is_same_v<T, PathCommand>) {
+                std::lock_guard<std::mutex> lock(poseMutex_);
+                if (value.points.empty()) {
+                    follower_.clear();
+                    gate_.stop(now);
+                } else {
+                    follower_.setPath(value.points, value.speed, value.id);
+                }
+                std::cout << "[Follow] Path " << value.id << " (" << value.points.size()
+                          << " points)\n";
+            } else if constexpr (std::is_same_v<T, PoseCorrectionCommand>) {
+                std::lock_guard<std::mutex> lock(poseMutex_);
+                correction_ = {value.x, value.y, value.yaw};
             } else if constexpr (std::is_same_v<T, EstopCommand>) {
+                {
+                    std::lock_guard<std::mutex> lock(poseMutex_);
+                    follower_.clear();
+                }
                 gate_.estop(now);
                 std::cout << "[Gate] E-stop latched\n";
             } else if constexpr (std::is_same_v<T, ResumeCommand>) {
                 gate_.resume(now);
                 std::cout << "[Gate] E-stop cleared\n";
             } else {
+                // stop (mission stop request): also cancels the autonomous path.
+                {
+                    std::lock_guard<std::mutex> lock(poseMutex_);
+                    follower_.clear();
+                }
                 gate_.stop(now);
             }
         }, command);
@@ -168,6 +231,7 @@ public:
                 picoEstop = status.estop;
                 lastSync = now;
             }
+            updatePose(now);
             if (auto command = gate_.tick(now)) {
                 pico_->send(*command);
             }
@@ -176,6 +240,57 @@ public:
         // Leave the Pico stopped; its own 300 ms timeout is the backstop.
         pico_->send(rover::control::holdAngles(gate_.status(Clock::now()).output));
         pico_->estop();
+    }
+
+    // Odometry + autonomous path following, once per output tick (20 Hz).
+    void updatePose(Clock::time_point now) {
+        namespace nav = rover::navigation;
+        const auto p = pico_->telemetry();
+        std::optional<double> imuYaw;
+        if (imu_) {
+            const auto r = imu_->reading();
+            if (r.ok) imuYaw = r.yaw;
+        }
+        const auto scan = lidar_ ? lidar_->latest() : rover::hardware::LaserScan{};
+        const double scanAge =
+            scan.valid ? std::chrono::duration<double>(now - scan.stamp).count() : 1e9;
+
+        nav::FollowOutput out;
+        {
+            std::lock_guard<std::mutex> lock(poseMutex_);
+            if (p.valid) odometry_.update(p.encLeft, p.encRight, imuYaw);
+            // Mock world: the "true" pose drifts from odometry (4 % distance, 3 % rotation)
+            // so the laptop SLAM has something to correct.
+            const double ds = odometry_.lastDistance() * 1.04;
+            const double mid = truth_.yaw + 0.5 * odometry_.lastRotation() * 1.03;
+            truth_.x += ds * std::cos(mid);
+            truth_.y += ds * std::sin(mid);
+            truth_.yaw = nav::wrapAngle(truth_.yaw + odometry_.lastRotation() * 1.03);
+
+            history_.push_back({now, odometry_.pose()});
+            while (history_.size() > 60) history_.pop_front();
+
+            if (gate_.status(now).controlMode == rover::control::ControlMode::autonomous) {
+                const auto mapPose = nav::compose(correction_, odometry_.pose());
+                out = follower_.step(mapPose, scan, scanAge);
+            }
+        }
+        if (out.active) {
+            gate_.applyMotion(rover::control::Source::autonomous, out.motion, now);
+        } else if (out.stop) {
+            gate_.stop(now);
+        }
+    }
+
+    // Odom pose closest in time to `t` (scan stamps lag the output loop slightly).
+    rover::navigation::Pose2D odomAt(Clock::time_point t) const {
+        std::lock_guard<std::mutex> lock(poseMutex_);
+        if (history_.empty()) return odometry_.pose();
+        auto best = history_.back();
+        for (const auto& h : history_) {
+            if (std::chrono::abs(h.first - t) < std::chrono::abs(best.first - t)) best = h;
+        }
+        return best.second;
     }
 
     rover::protocol::Telemetry telemetry() const {
@@ -205,6 +320,20 @@ public:
         t.maxCurvature = rover::control::maxCurvature(g);
         t.maxSpeed = g.maxWheelSpeed * g.maxDuty;
         t.spinEnabled = g.spinEnabled;
+        t.imuOk = imu_ && imu_->reading().ok;
+        if (lidar_) {
+            const auto scan = lidar_->latest();
+            t.lidarOk = scan.valid && now - scan.stamp < 500ms;
+        }
+        std::lock_guard<std::mutex> lock(poseMutex_);
+        const auto odom = odometry_.pose();
+        const auto map = rover::navigation::compose(correction_, odom);
+        t.odomPose = {odom.x, odom.y, odom.yaw};
+        t.mapPose = {map.x, map.y, map.yaw};
+        t.odomDistance = odometry_.distance();
+        t.followState = rover::navigation::toString(follower_.state());
+        t.pathId = follower_.pathId();
+        t.pathRemaining = follower_.remaining();
         return t;
     }
 
@@ -252,14 +381,25 @@ public:
                 continue;
             }
             std::cout << "[Telemetry] Connected to laptop:" << settings_.telemetryPort << '\n';
+            unsigned lastScan = 0;
+            unsigned tick = 0;
             while (!stopRequested) {
-                const std::string payload = rover::protocol::serializeTelemetry(telemetry());
-                const auto status = rover::communication::sendFrame(client.fd(), payload, error);
-                if (status != rover::communication::FrameStatus::received) {
-                    std::cerr << "[Telemetry] Send failed: " << error << '\n';
-                    break;
+                if (tick++ % 2 == 0) {
+                    if (!send(client, rover::protocol::serializeTelemetry(telemetry()), error)) {
+                        break;
+                    }
                 }
-                std::this_thread::sleep_for(100ms);
+                if (lidar_) {
+                    const auto scan = lidar_->latest();
+                    if (scan.valid && scan.sequence != lastScan) {
+                        lastScan = scan.sequence;
+                        if (!send(client, rover::protocol::serializeScan(scanMessage(scan)),
+                                  error)) {
+                            break;
+                        }
+                    }
+                }
+                std::this_thread::sleep_for(50ms);
             }
             client.close();
             std::this_thread::sleep_for(1s);
@@ -267,9 +407,46 @@ public:
     }
 
 private:
+    static bool send(rover::communication::TcpClient& client, const std::string& payload,
+                     std::string& error) {
+        const auto status = rover::communication::sendFrame(client.fd(), payload, error);
+        if (status != rover::communication::FrameStatus::received) {
+            std::cerr << "[Telemetry] Send failed: " << error << '\n';
+            return false;
+        }
+        return true;
+    }
+
+    rover::protocol::ScanMessage scanMessage(const rover::hardware::LaserScan& scan) const {
+        rover::protocol::ScanMessage m;
+        // Wall-clock stamp of the scan (it completed `age` ago).
+        const auto age = std::chrono::duration_cast<std::chrono::system_clock::duration>(
+            Clock::now() - scan.stamp);
+        m.timestamp = std::chrono::duration<double>(
+                          (std::chrono::system_clock::now() - age).time_since_epoch())
+                          .count();
+        m.sequence = scan.sequence;
+        const auto pose = odomAt(scan.stamp);
+        m.odomPose = {pose.x, pose.y, pose.yaw};
+        m.rangesMm.assign(scan.rangesMm.begin(), scan.rangesMm.end());
+        return m;
+    }
+
     Settings settings_;
+    rover::control::RoverConfig config_;
     rover::control::CommandGate gate_;
     std::unique_ptr<rover::hardware::PicoLink> pico_;
+
+    mutable std::mutex poseMutex_;  // odometry, follower, correction, truth, history
+    rover::navigation::Odometry odometry_;
+    rover::navigation::PathFollower follower_;
+    rover::navigation::Pose2D correction_;  // map <- odom
+    rover::navigation::Pose2D truth_;       // mock world only
+    std::deque<std::pair<Clock::time_point, rover::navigation::Pose2D>> history_;
+
+    // Declared last: their threads call back into the members above.
+    std::unique_ptr<rover::hardware::LidarSource> lidar_;
+    std::unique_ptr<rover::hardware::Bno055> imu_;
 };
 
 }  // namespace
@@ -282,6 +459,10 @@ int main(int argc, char* argv[]) {
             return 0;
         }
         config = rover::control::loadConfig(settings.configPath);
+        if (settings.pico == "mock") {
+            // MockPico: 1500 counts/s at duty 1 = maxWheelSpeed.
+            config.odometry.countsPerMeter = 1500.0 / config.geometry.maxWheelSpeed;
+        }
         if (settings.maxDuty >= 0.0) {
             // Override in the geometry so telemetry shows what the wheels really get.
             config.geometry.maxDuty = std::min(config.geometry.maxDuty, settings.maxDuty);

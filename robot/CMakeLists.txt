@@ -19,6 +19,10 @@ add_executable(rover_controller
     src/control/CommandGate.cpp
     src/control/Config.cpp
     src/hardware/PicoBridge.cpp
+    src/hardware/Lidar.cpp
+    src/hardware/Imu.cpp
+    src/navigation/Odometry.cpp
+    src/navigation/PathFollower.cpp
 )
 
 target_include_directories(rover_controller PRIVATE include)
@@ -57,10 +61,31 @@ if(BUILD_TESTING)
         src/control/CommandGate.cpp
         src/control/Config.cpp
         src/hardware/PicoBridge.cpp
+        src/hardware/Lidar.cpp
+        src/hardware/Imu.cpp
+        src/navigation/Odometry.cpp
+        src/navigation/PathFollower.cpp
     )
     target_include_directories(robot_control_tests PRIVATE include)
     target_link_libraries(robot_control_tests PRIVATE nlohmann_json::nlohmann_json Threads::Threads)
     target_compile_definitions(robot_control_tests PRIVATE
         ROVER_DEFAULT_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/config/rover.json")
     add_test(NAME robot_control_tests COMMAND robot_control_tests)
+
+    add_executable(robot_navigation_tests
+        tests/navigation_tests.cpp
+        src/communication/Protocol.cpp
+        src/control/Kinematics.cpp
+        src/control/CommandGate.cpp
+        src/control/Config.cpp
+        src/hardware/Lidar.cpp
+        src/hardware/Imu.cpp
+        src/navigation/Odometry.cpp
+        src/navigation/PathFollower.cpp
+    )
+    target_include_directories(robot_navigation_tests PRIVATE include)
+    target_link_libraries(robot_navigation_tests PRIVATE nlohmann_json::nlohmann_json Threads::Threads)
+    target_compile_definitions(robot_navigation_tests PRIVATE
+        ROVER_DEFAULT_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/config/rover.json")
+    add_test(NAME robot_navigation_tests COMMAND robot_navigation_tests)
 endif()

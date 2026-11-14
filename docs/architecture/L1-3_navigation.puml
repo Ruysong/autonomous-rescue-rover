@@ -10,34 +10,36 @@ top to bottom direction
 rectangle "mission / perception" as MISSION #line.dashed
 
 frame "cmp navigation" {
-  component "mapping\n(slam_toolbox)" <<laptop>> <<planned>> as MAP
-  component "planning\n(frontier 추출, costmap + A*)" <<laptop>> <<planned>> as PLAN
-  component "state estimation\n(EKF: encoders + IMU\n+ optical flow (2단계))" <<robot>> <<planned>> as EKF
-  component "path tracking\n(Pure Pursuit)" <<robot>> <<planned>> as TRACK
+  component "mapping\nScanSlam (laptop/navigation/slam.py)\noccupancy grid + scan matching" <<laptop>> as MAP
+  component "planning\nplanner.py + Explorer\n(frontier id, Dijkstra 경로)" <<laptop>> as PLAN
+  component "state estimation\nOdometry (robot/src/navigation)\nencoders + IMU (EKF · optical flow는 다음)" <<robot>> as EKF
+  component "path tracking\nPathFollower (Pure Pursuit,\n3-point turn, LiDAR 정지 상자)" <<robot>> as TRACK
 }
 
 rectangle "control / safety" as CONTROL #line.dashed
 
-MISSION --> PLAN : goal id\nmoving tracks (costmap 여유)
-MISSION --> MAP : moving tracks (지도에서 제외)
+MISSION --> PLAN : goal id (selector)\nmoving tracks (planned)
 PLAN -up-> MISSION : frontier list (id)
 MAP -up-> MISSION : map, pose
 
-CONTROL -up-> EKF : encoders, IMU\ncamera (floor region)
+CONTROL -up-> EKF : encoders, IMU
 CONTROL -up-> MAP : LiDAR scan
-EKF -up-> MAP : pose
+EKF -up-> MAP : odom pose (scan과 함께)
+MAP --> TRACK : pose correction (map ← odom)
 MAP --> PLAN : map, pose
 PLAN --> TRACK : path (waypoints)
-EKF --> TRACK : pose
-TRACK --> CONTROL : motion command (v, ω)
+EKF --> TRACK : odom pose
+CONTROL -up-> TRACK : LiDAR scan (정지 상자)
+TRACK --> CONTROL : motion (v, κ), source autonomous
 
 legend bottom right
   |= 도면 | L1-3 |
   |= 상위 | L0-1 |
   |= 펼친 박스 | navigation |
-  |= 기준 | autonomous-rescue-rover main 4c5a4ef (ros2/rover_localization: 모의 odometry만) |
-  |= 날짜 | 2026-11-14 |
+  |= 기준 | yw/autonomy (laptop/navigation, robot/src/navigation) |
+  |= 날짜 | 2026-11-15 |
   |= 표기 | 점선 = 이웃 L0 박스, <<laptop>>/<<robot>> = 실행 기기 |
-  |= | laptop → robot 경계는 path만 넘는다 (속도 명령은 Wi-Fi를 타지 않음) |
+  |= | laptop → robot 경계는 path · pose correction만 넘는다 |
+  |= | 사용법 docs/AUTONOMY.md, 프로토콜 v1.2 |
 endlegend
 @enduml

@@ -28,11 +28,13 @@ class CommunicationManager:
         command_port: int,
         telemetry_port: int,
         on_telemetry: Callable[[dict[str, Any]], None],
+        on_scan: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         self._bind_host = bind_host
         self._command_port = command_port
         self._telemetry_port = telemetry_port
         self._on_telemetry = on_telemetry
+        self._on_scan = on_scan
         self._running = threading.Event()
         self._command_lock = threading.Lock()
         self._command_socket: socket.socket | None = None
@@ -125,12 +127,16 @@ class CommunicationManager:
                         break
                     try:
                         message = decode_message(payload)
-                        if message["type"] != "telemetry":
-                            raise ProtocolError("Expected telemetry message")
+                        if message["type"] not in ("telemetry", "scan"):
+                            raise ProtocolError("Expected telemetry or scan message")
                     except ProtocolError as error:
                         print(f"[Telemetry] Rejected: {error}")
                         continue
-                    self._on_telemetry(message)
+                    if message["type"] == "scan":
+                        if self._on_scan is not None:
+                            self._on_scan(message)
+                    else:
+                        self._on_telemetry(message)
             except (OSError, FramingError) as error:
                 if self._running.is_set():
                     print(f"[Telemetry] Connection lost: {error}")

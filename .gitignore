@@ -218,3 +218,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# RoverAid run logs and saved maps (laptop/navigation/run_explore.py)
+/logs/
