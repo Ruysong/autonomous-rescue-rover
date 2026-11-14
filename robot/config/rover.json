@@ -1,0 +1,28 @@
+{
+  "_comment": "RoverAid robot config. Units: m, deg, ms. Wheel order FL, FR, RL, RR. Measured: tread and wheelbase (11/14). To measure: max_wheel_speed_mps, motor_sign, steering sign/trim, servo range.",
+  "geometry": {
+    "x_front_m": 0.28,
+    "x_rear_m": -0.25,
+    "y_front_m": 0.2825,
+    "y_rear_m": 0.2825,
+    "y_mid_m": 0.3125
+  },
+  "drive": {
+    "max_wheel_speed_mps": 0.24,
+    "max_duty": 0.6,
+    "motor_sign": [1, 1]
+  },
+  "steering": {
+    "max_deg": 30,
+    "spin_enabled": false,
+    "sign": [1, 1, 1, 1],
+    "trim_deg": [0, 0, 0, 0]
+  },
+  "gate": {
+    "command_timeout_ms": 500,
+    "brake_ms": 350,
+    "steer_rate_deg_s": 180,
+    "steer_margin_ms": 200,
+    "idle_after_stop_ms": 1000
+  }
+}

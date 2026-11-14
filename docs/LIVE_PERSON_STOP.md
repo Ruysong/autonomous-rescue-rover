@@ -44,6 +44,8 @@ After the GUI starts, run the Pi controller from the repository root:
 
 ```bash
 ./build/rover_controller --host 127.0.0.1 --motor gpio --arm-gpio --max-duty 15
+
+> 2026-11-14 (yw/teleop): motors are now driven by the Pico, so `--motor gpio --arm-gpio` no longer exists. Use `./build/rover_controller --host 127.0.0.1 --max-duty 0.15` (duty fraction 0..0.6, PicoBridge on /dev/ttyACM0). `drive.throttle` maps to duty, `drive.steer` to a fraction of the max curvature. See docs/TELEOP.md.
 ```
 
 The default GUI request is throttle `0.1`, equivalent to 10% PWM duty, with the Pi capped at 15%. The GUI and telemetry show **requested output**, not measured wheel speed. First test with the wheels raised: briefly press W, release it, then check Space, reverse, and person-triggered stop. If the right wheels rotate the opposite way, stop motor power and restart the Pi controller with `--invert-right`.

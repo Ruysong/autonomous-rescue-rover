@@ -15,12 +15,16 @@ add_executable(rover_controller
     src/communication/FramedSocket.cpp
     src/communication/Protocol.cpp
     src/communication/TcpClient.cpp
-    src/state/RobotState.cpp
-    src/motor/MockMotor.cpp
+    src/control/Kinematics.cpp
+    src/control/CommandGate.cpp
+    src/control/Config.cpp
+    src/hardware/PicoBridge.cpp
 )
 
 target_include_directories(rover_controller PRIVATE include)
 target_link_libraries(rover_controller PRIVATE nlohmann_json::nlohmann_json Threads::Threads)
+target_compile_definitions(rover_controller PRIVATE
+    ROVER_DEFAULT_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/config/rover.json")
 
 if(ROVER_WITH_GPIO)
     find_path(LGPIO_INCLUDE_DIR lgpio.h)
@@ -45,4 +49,18 @@ if(BUILD_TESTING)
     target_include_directories(robot_runtime_tests PRIVATE include)
     target_link_libraries(robot_runtime_tests PRIVATE nlohmann_json::nlohmann_json Threads::Threads)
     add_test(NAME robot_runtime_tests COMMAND robot_runtime_tests)
+
+    add_executable(robot_control_tests
+        tests/control_tests.cpp
+        src/communication/Protocol.cpp
+        src/control/Kinematics.cpp
+        src/control/CommandGate.cpp
+        src/control/Config.cpp
+        src/hardware/PicoBridge.cpp
+    )
+    target_include_directories(robot_control_tests PRIVATE include)
+    target_link_libraries(robot_control_tests PRIVATE nlohmann_json::nlohmann_json Threads::Threads)
+    target_compile_definitions(robot_control_tests PRIVATE
+        ROVER_DEFAULT_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/config/rover.json")
+    add_test(NAME robot_control_tests COMMAND robot_control_tests)
 endif()

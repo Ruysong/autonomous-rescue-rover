@@ -11,6 +11,7 @@ actor "user" as USER
 
 frame "cmp operator" {
   component "mission console\n(임무 할당, 결과 검토)" <<laptop>> <<planned>> as CONSOLE
+  component "gamepad teleop\n(laptop/teleop/)" <<laptop>> as PAD
   component "live_person_stop.py\n(수동 주행 + 사람 정지)" <<laptop>> <<test>> as LIVE
   component "control_console.py\n(키보드 조종)" <<laptop>> <<test>> as KEYS
 }
@@ -21,6 +22,9 @@ rectangle "control / safety" as CONTROL #line.dashed
 USER --> CONSOLE
 CONSOLE --> MISSION : mission assignment
 MISSION -up-> CONSOLE : detection report
+USER --> PAD : LB deadman, sticks, Back / Start
+PAD --> CONTROL : motion (manual), set_mode,\nestop / resume
+CONTROL -up-> PAD : telemetry (gate, Pico, limits)
 USER --> LIVE
 USER --> KEYS
 LIVE --> CONTROL : manual drive, stop (test)
@@ -30,8 +34,9 @@ legend bottom right
   |= 도면 | L1-1 |
   |= 상위 | L0-1 |
   |= 펼친 박스 | operator |
-  |= 기준 | jh/live-person-stop 791f82b (laptop/demo, laptop/communication) |
+  |= 기준 | yw/teleop (laptop/teleop, laptop/demo, laptop/communication) |
   |= 날짜 | 2026-11-14 |
-  |= 표기 | 점선 = 이웃 L0 박스, <<test>> = 시험용 (운용 시 직접 운전 안 함) |
+  |= 표기 | 점선 = 이웃 L0 박스, <<test>> = 시험용 |
+  |= | gamepad teleop = 수동 모드 (최종 시연 대비). 자율 모드에서는 Gate가 무시 |
 endlegend
 @enduml

@@ -24,6 +24,7 @@ frame "cmp RoverAid" {
 
   NAV --> CONTROL : motion command
   MISSION --> CONTROL : stop request
+  OPERATOR --> CONTROL : manual motion, E-stop\n(gamepad, 시연용)
   CONTROL -up-> NAV : sensor data, rover state
   CONTROL -up-> MISSION : video, LiDAR scan, rover state
 
@@ -35,7 +36,7 @@ legend bottom right
   |= 도면 | L0-1 |
   |= 상위 | 없음 (최상위) |
   |= 펼친 박스 | 전체 |
-  |= 기준 | autonomous-rescue-rover main 4c5a4ef |
+  |= 기준 | yw/teleop (main 4c5a4ef 기반) |
   |= 날짜 | 2026-11-14 |
   |= 표기 | 아래로 = 명령, 위로 = 관측·보고 |
 endlegend

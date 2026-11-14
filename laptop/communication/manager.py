@@ -8,7 +8,17 @@ from collections.abc import Callable
 from typing import Any
 
 from .framing import FramingError, recv_framed, send_framed
-from .messages import ProtocolError, decode_message, encode_message, make_drive, make_stop
+from .messages import (
+    ProtocolError,
+    decode_message,
+    encode_message,
+    make_drive,
+    make_estop,
+    make_motion,
+    make_resume,
+    make_set_mode,
+    make_stop,
+)
 
 
 class CommunicationManager:
@@ -150,3 +160,24 @@ class CommunicationManager:
 
     def send_stop(self) -> bool:
         return self._send(make_stop())
+
+    def send(self, message: dict[str, object]) -> bool:
+        return self._send(message)
+
+    def send_motion(self, v: float = 0.0, kappa: float = 0.0, wz: float = 0.0,
+                    steer_mode: str = "normal", source: str = "manual") -> bool:
+        return self._send(make_motion(v, kappa, wz, steer_mode, source))
+
+    def send_set_mode(self, mode: str) -> bool:
+        return self._send(make_set_mode(mode))
+
+    def send_estop(self) -> bool:
+        return self._send(make_estop())
+
+    def send_resume(self) -> bool:
+        return self._send(make_resume())
+
+    @property
+    def robot_connected(self) -> bool:
+        with self._command_lock:
+            return self._command_socket is not None

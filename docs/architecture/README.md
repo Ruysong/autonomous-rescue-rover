@@ -32,6 +32,7 @@
 | 관계 | 아래로 (명령) | 위로 (관측 · 보고) |
 |---|---|---|
 | operator ↔ mission / perception | 임무 할당 | 발견 결과 보고 |
+| operator ↔ control / safety | 수동 주행 명령 (gamepad), 모드 전환, E-stop (시연용 수동 모드) | 텔레메트리 |
 | mission / perception ↔ navigation | 목표 frontier id, 움직이는 물체 목록 (track) | frontier 후보 목록 (id), 지도, pose |
 | mission / perception → control / safety | stop 요청 (navigation을 거치지 않음) | 영상, LiDAR scan, 로버 상태 |
 | navigation ↔ control / safety | 움직임 명령 (v, ω) | 센서 데이터, 로버 상태 |
@@ -39,7 +40,7 @@
 
 ## 2. 블록별 (L1)
 
-**operator** — 임무를 주고 결과를 검토한다. 운전은 직접 하지 않고 시스템이 한다. 지금 있는 수동 조작 코드(`laptop/demo/live_person_stop.py`, `laptop/communication/control_console.py`)는 시험용.
+**operator** — 임무를 주고 결과를 검토한다. 자율 모드에서는 운전을 시스템이 한다. 최종 시연에서 자율 주행이 안 될 때를 대비해 **gamepad 수동 모드**(`laptop/teleop/`)를 둔다: 패드 → `motion`(source manual) → Command Gate. 사용법은 [`../TELEOP.md`](../TELEOP.md). `live_person_stop.py`, `control_console.py`는 시험용.
 
 **mission / perception**
 - perception: 영상에서 사람이 있는가와 확률을 관측 (`PersonDetector`).
@@ -58,9 +59,11 @@
 - path tracking: 경로 + pose로 Pure Pursuit → 움직임 명령 (v, ω) (`robot`).
 
 **control / safety**
-- Command Gate: 위에서 온 명령을 검증 · 적용. 명령이 끊기면 정지, 로버 상태 보고 (`robot`, 현재 `robot/` C++ 런타임).
-- kinematics: (v, ω) → 좌우 속도 + 바퀴 4개 조향각. 역기구학은 ROS 관례대로 여기서 (`robot`).
-- Hardware Interface (`robot`): PicoBridge(명령 → 시리얼 → Pico, Pico 센서 데이터를 위로), Sensor Drivers(LiDAR, IMU, 카메라를 읽어 위로).
+- Command Gate (`robot/src/control/CommandGate.cpp`): 위에서 온 명령을 검증 · 적용. manual / autonomous 중 현재 모드의 명령만 받는다. 0.5 s 안에 새 명령이 없으면 정지, 링크가 끊기면 정지, E-stop은 resume까지 래치. 조향 모드가 바뀌면 정지 → 조향 → 구동 순서.
+- kinematics (`robot/src/control/Kinematics.cpp`): (v, κ) 또는 제자리 회전 ω → 좌우 duty + 바퀴 4개 조향각. 역기구학은 ROS 관례대로 여기서 (`robot`). 기구 값은 `robot/config/rover.json` (채널별 부호 · 중립 보정).
+  - 중간 바퀴가 조향되지 않아 회전 중심은 항상 중간 축선 위 → Ackermann과 대칭 4WS가 같은 동작(앞 · 뒤 반대로). crab 불가.
+  - ±30°에서 최소 회전 반경 약 0.77 m. 제자리 회전은 모서리 바퀴가 약 45° 필요해서 서보 범위 실측 전까지 꺼 둔다 (`spin_enabled`).
+- Hardware Interface (`robot`): PicoBridge(`robot/src/hardware/PicoBridge.cpp`, 명령 → 시리얼 → Pico 20 Hz, Pico 센서 데이터를 위로, `mock` 모드 있음), Sensor Drivers(LiDAR, IMU, 카메라를 읽어 위로).
 - Realtime Controller (`pico`, `pico/main.py`): 모터 PWM, 서보, 엔코더 카운트, 소프트 리미트, 슬루 제한, 링크 끊기면 중립 복귀. 프로토콜은 [HARDWARE_INTERFACE.md](../HARDWARE_INTERFACE.md) (PR #5).
 
 ## 3. 실행 기기 배치
@@ -72,7 +75,7 @@
 | `pico` | Realtime Controller | ms 단위 제어와 마지막 보호 |
 
 원칙
-1. `laptop` → `robot` 경계는 **경로(waypoints)와 stop 요청만** 넘는다. 속도 명령은 Wi-Fi를 타지 않는다.
+1. `laptop` → `robot` 경계는 **경로(waypoints)와 stop 요청만** 넘는다. 속도 명령은 Wi-Fi를 타지 않는다. 예외: 수동 모드(gamepad)의 `motion`은 Wi-Fi로 넘어가고, Gate timeout 0.5 s로 막는다.
 2. 보호는 두 겹: Command Gate(명령 끊김 · stop 요청)와 Realtime Controller(출력 제한 · 링크 타임아웃).
 3. Pico 시리얼은 PicoBridge 하나만 연다.
 

@@ -1,4 +1,4 @@
-# Robot Communication Protocol v1
+# Robot Communication Protocol v1 (v1.1 additions at the end)
 
 ## Scope
 
@@ -94,3 +94,45 @@ The Pi build uses [nlohmann/json](https://github.com/nlohmann/json). On Raspberr
 ```bash
 sudo apt install nlohmann-json3-dev
 ```
+
+## v1.1 additions (2026-11-14, yw/teleop)
+
+`_version` may be `"1.0"` or `"1.1"`. `drive` and `stop` are accepted with either version; the types below require `"1.1"`. The robot answers with `"1.1"` telemetry. v1.0 readers can ignore the extra telemetry fields.
+
+### Motion
+
+```json
+{"_version": "1.1", "type": "motion", "source": "manual", "steer_mode": "normal",
+ "v": 0.10, "kappa": 0.5, "wz": 0.0}
+```
+
+- `source`: `manual` (gamepad) or `autonomous` (robot path tracker). The Command Gate only accepts the source that matches its current control mode.
+- `steer_mode`: `normal` (front and rear corners steer opposite; turn centre on the middle axle) or `spin` (turn in place, refused while `limits.spin_enabled` is false).
+- `v` [m/s, |v| <= 2] and `kappa` [1/m, + = left, |kappa| <= 20] for `normal`; `wz` [rad/s, + = CCW, |wz| <= 5] for `spin`. The robot clamps to its own limits (reported in telemetry).
+- Must be repeated (20 Hz); without a fresh `motion` for 0.5 s the gate stops (`safety_state: timeout`).
+
+### Control mode, E-stop
+
+```json
+{"_version": "1.1", "type": "set_mode", "mode": "autonomous"}
+{"_version": "1.1", "type": "estop"}
+{"_version": "1.1", "type": "resume"}
+```
+
+- `set_mode`: `manual` or `autonomous`. Every change starts from a stop.
+- `estop`: latched; all motion is ignored until `resume`. `stop` stays one-shot (the next `motion` drives again).
+
+### Telemetry (v1.1 fields)
+
+```json
+{"_version": "1.1", "type": "telemetry", "timestamp": 1.0, "motor_speed": 0.0, "mode": "pico",
+ "safety_state": "normal", "last_command_age": 0.05,
+ "control_mode": "manual", "steer_mode": "normal", "estop": false,
+ "duty": [0.18, 0.18], "steer_deg": [0, 0, 0, 0],
+ "pico": {"ok": true, "flags": 0}, "encoders": [0, 0], "ultrasonic_cm": [67, 366, -1, 50],
+ "limits": {"max_curvature": 1.303, "max_speed": 0.144, "spin_enabled": false}}
+```
+
+- `mode`: `pico` (real Pico) or `mock`. `safety_state`: `normal`, `stopped`, `timeout`, `estop`, `disconnected`, `switching` (brake -> steer before a steer-mode change), `rejected`.
+- `steer_deg` and `ultrasonic_cm` are in FL, FR, RL, RR order. `pico.flags` as in docs/HARDWARE_INTERFACE.md.
+- Sent at 10 Hz.

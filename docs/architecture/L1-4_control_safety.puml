@@ -7,14 +7,15 @@ skinparam componentStyle rectangle
 skinparam ArrowFontSize 11
 top to bottom direction
 
+rectangle "operator" as OPERATOR #line.dashed
 rectangle "navigation" as NAV #line.dashed
 rectangle "mission / perception" as MISSION #line.dashed
 
 frame "cmp control / safety" {
-  component "Command Gate\n(검증·적용, 끊기면 정지, 상태 보고)" <<robot>> as GATE
-  component "kinematics\n(v, ω → 좌우 속도 + 조향 4개)" <<robot>> <<planned>> as IK
+  component "CommandGate\n(manual / autonomous 권한, timeout,\nE-stop 래치, 정지 → 조향 → 구동)" <<robot>> as GATE
+  component "Kinematics\n(v, κ / ω → 좌우 duty + 조향 4개,\nconfig/rover.json)" <<robot>> as IK
   package "Hardware Interface" {
-    component "PicoBridge" <<robot>> <<planned>> as BRIDGE
+    component "PicoBridge\n(시리얼 단독 사용, 20 Hz)" <<robot>> as BRIDGE
     component "Sensor Drivers\n(LiDAR, IMU, camera)" <<robot>> as DRIVERS
   }
   component "Realtime Controller\n(pico/main.py)" <<pico>> as RT
@@ -22,10 +23,11 @@ frame "cmp control / safety" {
 
 rectangle "rover\n(motors, servos, sensors)" as ROVER #line.dashed
 
-NAV --> GATE : motion command (v, ω)
+OPERATOR --> GATE : manual motion, set_mode,\nestop / resume
+NAV --> GATE : motion command (v, κ)
 MISSION --> GATE : stop request
-GATE --> IK : validated command
-IK --> BRIDGE : wheel speeds, steer angles
+GATE --> IK : validated motion
+IK --> BRIDGE : duty L/R, steer angles
 BRIDGE --> RT : USB serial C / E / R
 RT --> ROVER : PWM (motors, servos)
 
@@ -34,6 +36,7 @@ RT -up-> BRIDGE : S telemetry
 ROVER -up-> DRIVERS : LiDAR, IMU, camera
 BRIDGE -up-> GATE : encoders, ultrasonic, flags
 GATE -up-> MISSION : rover state
+GATE -up-> OPERATOR : telemetry
 DRIVERS -up-> NAV : LiDAR scan, IMU
 BRIDGE -up-> NAV : encoders
 DRIVERS -up-> MISSION : video, LiDAR scan
@@ -42,9 +45,9 @@ legend bottom right
   |= 도면 | L1-4 |
   |= 상위 | L0-1 |
   |= 펼친 박스 | control / safety |
-  |= 기준 | jh/live-person-stop 791f82b (robot/), yw/hardware-interface (pico/) |
+  |= 기준 | yw/teleop (robot/src/control, robot/src/hardware, pico/) |
   |= 날짜 | 2026-11-14 |
-  |= 표기 | 점선 = 이웃 L0 박스, <<planned>> = 새로 만듦 |
+  |= 표기 | 점선 = 이웃 L0 박스 |
   |= | 역기구학은 ROS 관례대로 control / safety에서 |
   |= | Sensor Drivers 중 camera는 현재 hw_test/cam_stream.py |
 endlegend
