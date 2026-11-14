@@ -79,7 +79,7 @@ The Pi immediately calls `MotorInterface::stop()`.
 }
 ```
 
-Telemetry is emitted by the Pi at about 5 Hz in the later Pi integration phase.
+The Pi runtime emits telemetry at about 5 Hz. In the current mock-hardware build, `motor_speed` reports the commanded throttle, not measured wheel speed.
 
 ## Communication safety semantics
 

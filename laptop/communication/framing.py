@@ -45,4 +45,7 @@ def recv_framed(sock: socket.socket) -> bytes | None:
     if payload_size > MAX_FRAME_SIZE:
         raise FramingError(f"Peer declared an oversized frame: {payload_size} bytes")
 
-    return recv_exact(sock, payload_size)
+    payload = recv_exact(sock, payload_size)
+    if payload is None:
+        raise FramingError("Connection closed after the frame header")
+    return payload
