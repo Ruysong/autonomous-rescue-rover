@@ -55,7 +55,7 @@ cmake -S robot -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j4
 
 ### 3. 첫 실주행 순서 (배터리는 사람이 옆에 있을 때만)
 
-1. 바퀴를 띄운 상태 (박스 위)에서 `--max-duty 0`: 오른쪽 스틱으로 조향 방향 · 중립 확인 → `robot/config/rover.json`의 `steering.sign`, `trim_deg` 수정.
+1. 바퀴를 띄운 상태 (박스 위)에서 `--max-duty 0`: 오른쪽 스틱으로 조향 방향 · 중립 확인 → `robot/config/rover.json`의 `steering.sign`, `trim_deg` 수정. 11/16 확인: 서보 결선이 좌우 반대라 `pico/main.py` `SERVO` GP 번호를 맞바꿈 (FL 18, FR 6, RL 19, RR 7), 네 서보 모두 + = 탑뷰 시계라 `sign` −1. 남은 것은 `trim_deg`와 바뀐 펌웨어로 재확인.
 2. 바퀴를 띄운 채 `--max-duty 0.2`: 전진에서 좌우 바퀴가 앞으로 도는지 → `drive.motor_sign`.
 3. 바닥에서 낮은 속도로 직진 · 회전. 엔코더로 `max_wheel_speed_mps` 실측 후 수정.
 4. 서보 실제 범위를 재고 45° 이상이면 `steering.max_deg`, `spin_enabled` 조정 (Pico `SERVO` 한계도 같이).

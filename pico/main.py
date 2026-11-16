@@ -25,11 +25,11 @@ MOTOR = {"L": (5, 4, 1), "R": (20, 21, 1)}  # (PWM gpio, DIR gpio, sign); DIR 0 
 MOTOR_HZ = 20000
 DUTY_MAX = 0.6           # hard cap on |duty|
 DUTY_SLEW = 2.0          # duty units per second (0 -> 0.6 in 0.3 s)
-SERVO = {                # gpio, center_us, min_deg, max_deg, sign
-    "FL": (6, 1500, -30, 30, 1),
-    "FR": (18, 1500, -30, 30, 1),
-    "RL": (7, 1500, -30, 30, 1),
-    "RR": (19, 1500, -30, 30, 1),
+SERVO = {                # gpio, center_us, min_deg, max_deg, sign (11/16: wired left/right swapped, so FL=18 FR=6 RL=19 RR=7)
+    "FL": (18, 1500, -30, 30, 1),
+    "FR": (6, 1500, -30, 30, 1),
+    "RL": (19, 1500, -30, 30, 1),
+    "RR": (7, 1500, -30, 30, 1),
 }
 SERVO_ORDER = ("FL", "FR", "RL", "RR")
 US_PER_DEG = 1000 / 90

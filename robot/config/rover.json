@@ -1,5 +1,5 @@
 {
-  "_comment": "RoverAid robot config. Units: m, deg, ms. Wheel order FL, FR, RL, RR. Measured: tread and wheelbase (11/14). To measure: max_wheel_speed_mps, motor_sign, steering sign/trim, servo range. Autonomy (11/14): counts_per_meter, lidar yaw_offset/direction, imu yaw_sign are placeholders to check on site (docs/AUTONOMY.md).",
+  "_comment": "RoverAid robot config. Units: m, deg, ms. Wheel order FL, FR, RL, RR. Measured: tread and wheelbase (11/14). Steering (11/16): all four servos turn clockwise (top view) on +, so sign -1. To measure: max_wheel_speed_mps, motor_sign, steering trim, servo range. Autonomy (11/14): counts_per_meter, lidar yaw_offset/direction, imu yaw_sign are placeholders to check on site (docs/AUTONOMY.md).",
   "geometry": {
     "x_front_m": 0.28,
     "x_rear_m": -0.25,
@@ -15,7 +15,7 @@
   "steering": {
     "max_deg": 30,
     "spin_enabled": false,
-    "sign": [1, 1, 1, 1],
+    "sign": [-1, -1, -1, -1],
     "trim_deg": [0, 0, 0, 0]
   },
   "gate": {
