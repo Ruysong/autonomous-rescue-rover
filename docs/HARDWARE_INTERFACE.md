@@ -81,8 +81,8 @@ GPIO 번호 기준. Pico는 USB가 로버 전방, 왼쪽 열 = 로버 왼쪽.
 |---|---|---|
 | MDD10A DIR1 / PWM1 (왼쪽 모터 ×3) | 4 / 5 | PWM 20 kHz, slice 2B. DIR 0 = 전진 (미확인) |
 | MDD10A PWM2 / DIR2 (오른쪽 모터 ×3) | 20 / 21 | PWM 20 kHz, slice 2A |
-| 서보 FL / RL | 6 / 7 | 50 Hz, slice 3A / 3B |
-| 서보 FR / RR | 18 / 19 | 50 Hz, slice 1A / 1B |
+| 서보 FR / RR | 6 / 7 | 50 Hz, slice 3A / 3B. 11/16 확인: 결선이 좌우 반대라 펌웨어에서 맞바꿈 (원래 FL / RL 배정) |
+| 서보 FL / RL | 18 / 19 | 50 Hz, slice 1A / 1B. 위와 같은 이유로 맞바꿈 (원래 FR / RR 배정) |
 | 엔코더 왼쪽 A / B | 8 / 9 | 3.3 V, 풀업 |
 | 엔코더 오른쪽 A / B | 16 / 17 | 3.3 V, 풀업 |
 | 초음파 FL (위, 천장) TRIG / ECHO | 0 / 1 | |
