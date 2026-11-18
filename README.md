@@ -60,3 +60,7 @@ The laptop demo reads a local video or webcam, confirms a person candidate, and 
 ## Raspberry Pi Access
 
 Connect the Pi and laptop to the same network, then use `ssh rover@rover-pi.local` (or the Pi's current IP address). The password is shared privately.
+
+## Mission AI integration
+
+This branch extends `yw/autonomy` with asynchronous local Qwen goal selection and observation-based visual protection. Use the single exploration dashboard; see [setup, controls and verification](docs/MISSION_AI.md). Rebuild the Pi runtime from the same branch.

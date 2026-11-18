@@ -62,6 +62,8 @@ class Explorer:
         self._last_correction = 0.0
         self._last_plan = 0.0
         self._path_id = 0
+        self.goal_history = []
+        self._last_goal_result = None
         self._attempts: list[tuple[float, float, int]] = []   # x, y, count
         self._last_follow_seen: tuple[int, str] | None = None
         self.last_result = None
@@ -88,6 +90,7 @@ class Explorer:
 
     def pause(self, note: str = "paused") -> None:
         self.status.active = False
+        if hasattr(self.selector, "invalidate"): self.selector.invalidate()
         self.status.note = note
         self.status.goal = None
         self.status.path = []
@@ -126,13 +129,18 @@ class Explorer:
             ready, why = self._robot_ready()
             follow = self.telemetry.get("follow", {})
         if not ready:
-            self.status.note = why
+            if self.status.path: self.pause(why)
+            else: self.status.note = why
             return
         state = follow.get("state", "idle")
         path_id = follow.get("path_id", -1)
         now = time.monotonic()
 
         current = path_id == self._path_id and self.status.goal is not None
+        if current and state in ('reached','blocked','no_scan') and self._last_goal_result != (path_id,state):
+            self._last_goal_result=(path_id,state)
+            self.goal_history.append({'x':self.status.goal.x,'y':self.status.goal.y,'state':state})
+            self.goal_history=self.goal_history[-20:]
         if current and state in ("blocked", "no_scan"):
             if (path_id, state) != self._last_follow_seen:
                 self._note_attempt(self.status.goal.x, self.status.goal.y)
@@ -165,15 +173,26 @@ class Explorer:
                 self.send(make_path([], self._path_id))
                 return
             choice = None
-            if self.selector is not None:
+            old = self.status.goal
+            follow_state = self.telemetry.get('follow',{}).get('state')
+            if old is not None and follow_state not in ('reached','blocked','idle','no_scan'):
+                same = min(candidates,key=lambda f:math.hypot(f.x-old.x,f.y-old.y))
+                if math.hypot(same.x-old.x,same.y-old.y) < .4: choice = same.id
+            if choice is None and self.selector is not None:
                 try:
-                    choice = self.selector(candidates, {"pose": pose})
-                except Exception as error:  # the LLM must never stop the robot from exploring
+                    choose = getattr(self.selector,'choose',self.selector)
+                    choice = choose(candidates, {'pose':pose,
+                        'attempts':{f.id:self._attempt_count(f.x,f.y) for f in candidates},'goal_results':list(self.goal_history)})
+                except Exception as error:
                     self.status.note = f"selector error: {error}"
-                if choice not in {f.id for f in candidates}:
-                    choice = None
-            if choice is None:
-                choice = nearest_frontier(candidates, self.planner)
+                if choice not in {f.id for f in candidates}: choice = None
+                if choice is None and getattr(self.selector,'strict',False):
+                    self.status.note = self.selector.status
+                    if self.status.path:
+                        self.status.path=[]; self.status.goal=None
+                        self._path_id+=1; self.send(make_path([],self._path_id))
+                    return
+            if choice is None: choice = nearest_frontier(candidates,self.planner)
             goal = next(f for f in candidates if f.id == choice)
             points = path_to(plan, self.slam, (goal.x, goal.y), self.planner)
         self._last_plan = now
@@ -185,5 +204,5 @@ class Explorer:
         self.status.goal = goal
         self.status.path = points
         self.status.note = (f"frontier {goal.id}/{len(candidates)} "
-                            f"{goal.distance:.1f} m, {len(points)} pts")
+                            f"cost {goal.distance:.1f}, {len(points)} pts")
         self.send(make_path(points, self._path_id, self.config.speed))

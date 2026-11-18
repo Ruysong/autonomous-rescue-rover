@@ -260,6 +260,35 @@ void testPicoLines() {
     check(formatDriveLine(c) == "C,0.250,-0.500,10.0,9.5,-10.0,-9.5\n", "C line format");
 }
 
+void testProtection() {
+    Geometry g; CommandGate gate(g, {}); const auto t = Clock::now();
+    gate.linkConnected(t); Motion m; m.v=0.12;
+    gate.protection(false,0.05,t);
+    gate.applyMotion(Source::manual,m,t); auto out=gate.tick(t);
+    check(out && std::fabs(out->dutyLeft*g.maxWheelSpeed)<=0.050001,"protection caps manual speed");
+    gate.protection(true,0.05,t+10ms);
+    check(!gate.applyMotion(Source::manual,m,t+20ms),"hold rejects new manual motion");
+    gate.protection(false,0.05,t+30ms);
+    check(!gate.applyMotion(Source::manual,m,t+40ms),"clear observation does not release latch");
+    gate.resume(t+40ms);
+    check(gate.applyMotion(Source::manual,m,t+50ms),"explicit resume releases clear hold");
+    gate.tick(t+600ms);
+    check(!gate.applyMotion(Source::manual,m,t+601ms),"lost guard heartbeat latches hold");
+    gate.protection(false,0.5,t+610ms);gate.resume(t+610ms);
+    gate.linkDisconnected(t+620ms);
+    check(!gate.applyMotion(Source::manual,m,t+630ms),"no motion while disconnected");
+    gate.linkConnected(t+640ms);gate.setControlMode(ControlMode::autonomous,t+640ms);
+    gate.localBlocked(true,t+640ms);
+    check(!gate.applyMotion(Source::autonomous,m,t+650ms),"local obstacle blocks autonomous");
+    check(!gate.applyMotion(Source::manual,m,t+650ms),"local obstacle blocks manual");
+    gate.localBlocked(false,t+660ms);
+    check(gate.applyMotion(Source::autonomous,m,t+660ms),"clear lidar allows motion");
+    check(rover::protocol::isValid(rover::protocol::parseCommand(
+        R"({"_version":"1.2","type":"protection","hold":false,"speed_limit":0.05})")),"protection parse");
+    check(!rover::protocol::isValid(rover::protocol::parseCommand(
+        R"({"_version":"1.2","type":"protection","hold":1,"speed_limit":0.05})")),"protection rejects numeric hold");
+}
+
 void testConfig() {
     const auto config = loadConfig(ROVER_DEFAULT_CONFIG);
     check(near(config.geometry.yMid, 0.3125), "config tread loaded");
@@ -284,6 +313,7 @@ int main() {
         testProtocol();
         testPicoLines();
         testConfig();
+        testProtection();
     } catch (const std::exception& error) {
         std::cerr << "exception: " << error.what() << '\n';
         return 1;

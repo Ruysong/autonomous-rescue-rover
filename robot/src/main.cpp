@@ -178,6 +178,9 @@ public:
                 rc::controlModeFrom(value.mode, mode);
                 gate_.setControlMode(mode, now);
                 std::cout << "[Gate] Control mode: " << value.mode << '\n';
+            } else if constexpr (std::is_same_v<T, ProtectionCommand>) {
+                gate_.protection(value.hold,value.speedLimit,now);
+                if (value.hold) { std::lock_guard<std::mutex> lock(poseMutex_); follower_.clear(); }
             } else if constexpr (std::is_same_v<T, PathCommand>) {
                 std::lock_guard<std::mutex> lock(poseMutex_);
                 if (value.points.empty()) {
@@ -255,6 +258,14 @@ public:
         const double scanAge =
             scan.valid ? std::chrono::duration<double>(now - scan.stamp).count() : 1e9;
 
+        const auto gateStatus = gate_.status(now);
+        const auto outWheels = gateStatus.output;
+        const bool forward = outWheels.dutyLeft * gate_.geometry().motorSign[0] + outWheels.dutyRight * gate_.geometry().motorSign[1] >= 0;
+        const bool stale = !scan.valid || scanAge > config_.follower.scanMaxAge;
+        const double travel = outWheels.dutyLeft * gate_.geometry().motorSign[0] + outWheels.dutyRight * gate_.geometry().motorSign[1];
+        const bool nearby = nav::PathFollower::blockedByScan(config_.follower,scan,forward) ||
+            (std::fabs(travel)<1e-6 && nav::PathFollower::blockedByScan(config_.follower,scan,!forward));
+        gate_.localBlocked(stale || nearby,now);
         nav::FollowOutput out;
         {
             std::lock_guard<std::mutex> lock(poseMutex_);
@@ -366,6 +377,7 @@ public:
                 }
             }
             gate_.linkDisconnected(Clock::now());
+            { std::lock_guard<std::mutex> lock(poseMutex_); follower_.clear(); }
             std::cout << "[Safety] Command link lost; stopped\n";
             client.close();
             std::this_thread::sleep_for(1s);

@@ -55,8 +55,10 @@ struct PoseCorrectionCommand {
     double yaw = 0.0;
 };
 
+struct ProtectionCommand { bool hold = false; double speedLimit = 0.5; };
+
 using Command = std::variant<DriveCommand, StopCommand, MotionCommand, SetModeCommand, EstopCommand,
-                             ResumeCommand, PathCommand, PoseCorrectionCommand>;
+                             ResumeCommand, PathCommand, PoseCorrectionCommand, ProtectionCommand>;
 
 struct CommandParseResult {
     std::variant<Command, std::string> result;

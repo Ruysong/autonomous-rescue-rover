@@ -145,6 +145,14 @@ CommandParseResult parseCommand(const std::string& payload) {
             return invalid("Unsupported command type");
         }
 
+        if (type == "protection") {
+            ProtectionCommand c;
+            if (!message.contains("hold") || !message["hold"].is_boolean() ||
+                !readNumber(message,"speed_limit",0.5,c.speedLimit,true) || c.speedLimit < 0)
+                return invalid("protection needs boolean hold and speed_limit 0..0.5");
+            c.hold = message["hold"].get<bool>();
+            return valid(c);
+        }
         if (type == "path") {
             PathCommand path;
             double id = 0.0;
@@ -198,6 +206,7 @@ std::string serializeTelemetry(const Telemetry& t) {
         {"safety_state", t.safetyState},
         {"last_command_age", t.lastCommandAge},
         {"control_mode", t.controlMode},
+        {"protection_supported", true},
         {"steer_mode", t.steerMode},
         {"estop", t.estop},
         {"duty", {t.dutyLeft, t.dutyRight}},

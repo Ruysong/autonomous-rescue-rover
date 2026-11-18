@@ -179,3 +179,20 @@ sudo apt install nlohmann-json3-dev
 
 - `follow.state`: `idle`, `following`, `reversing` (3-point turn: the next point is behind), `blocked` (LiDAR return in the stop box ahead / behind), `no_scan` (LiDAR stale, stopped), `reached`.
 - Telemetry is now sent at 10 Hz alongside scans (the robot loop runs at 20 Hz and sends telemetry every other tick).
+
+
+## Mission protection extension (jh/mission-llm)
+
+Version 1.2 extension, advertised by `protection_supported: true` in telemetry.
+Old robot builds do not support it; the integrated runner refuses motion without the capability.
+
+```json
+{"_version":"1.2","type":"protection","hold":false,"speed_limit":0.05}
+```
+
+Repeat every 150 ms. `hold` must be boolean; `speed_limit` finite in [0,0.5] m/s.
+Once enabled, a missing heartbeat for 500 ms latches a protection hold. Setting hold=false alone
+does not clear it: fresh protection + explicit `resume` are required. The cap affects manual
+and autonomous motion (spin is limited through middle-wheel speed). Local blocked/stale LiDAR
+and disconnected command link prevent output independently. `stop` remains a one-shot command;
+GUI protection uses this latch and E-stop rather than relying on one-shot stop for safety.

@@ -68,7 +68,7 @@ void CommandGate::linkDisconnected(Clock::time_point now) {
 
 bool CommandGate::applyMotion(Source source, const Motion& motion, Clock::time_point now) {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (estop_ || source != sourceOf(controlMode_)) {
+    if (!linkConnected_ || estop_ || localBlocked_ || guardLatched_ || source != sourceOf(controlMode_)) {
         ++ignored_;
         return false;
     }
@@ -80,6 +80,8 @@ bool CommandGate::applyMotion(Source source, const Motion& motion, Clock::time_p
     }
 
     motion_ = motion;
+    motion_.v = std::clamp(motion_.v, -speedLimit_, speedLimit_);
+    motion_.wz = std::clamp(motion_.wz, -speedLimit_/geometry_.yMid, speedLimit_/geometry_.yMid);
     hasMotion_ = true;
     lastMotion_ = now;
 
@@ -118,9 +120,9 @@ void CommandGate::estop(Clock::time_point now) {
 
 void CommandGate::resume(Clock::time_point now) {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (!estop_) {
-        return;
-    }
+    if (guardEnabled_ && (guardHold_ || now-lastGuard_ >= std::chrono::milliseconds(500))) return;
+    if (localBlocked_ || !linkConnected_) return;
+    guardLatched_ = false;
     estop_ = false;
     haltLocked(now, linkConnected_ ? "stopped" : "disconnected");
 }
@@ -128,6 +130,10 @@ void CommandGate::resume(Clock::time_point now) {
 std::optional<WheelCommand> CommandGate::tick(Clock::time_point now) {
     std::lock_guard<std::mutex> lock(mutex_);
 
+    if (guardEnabled_ && now-lastGuard_ >= std::chrono::milliseconds(500)) guardLatched_ = true;
+    if (!linkConnected_ || localBlocked_ || guardLatched_) {
+        haltLocked(now, estop_ ? "estop" : !linkConnected_ ? "disconnected" : localBlocked_ ? "blocked" : "protection_hold");
+    }
     if (hasMotion_ && now - lastMotion_ >= config_.commandTimeout) {
         haltLocked(now, "timeout");
     }
@@ -180,7 +186,10 @@ std::optional<WheelCommand> CommandGate::tick(Clock::time_point now) {
         return output_;
     }
 
-    const WheelCommand command = solve(geometry_, motion_);
+    Motion limited = motion_;
+    limited.v = std::clamp(limited.v, -speedLimit_, speedLimit_);
+    limited.wz = std::clamp(limited.wz, -speedLimit_/geometry_.yMid, speedLimit_/geometry_.yMid);
+    const WheelCommand command = solve(geometry_, limited);
     if (command.rejected) {
         output_ = holdAngles(output_);
         output_.rejected = true;
@@ -190,6 +199,19 @@ std::optional<WheelCommand> CommandGate::tick(Clock::time_point now) {
     output_ = command;
     safetyState_ = "normal";
     return output_;
+}
+
+void CommandGate::protection(bool hold, double limit, Clock::time_point now) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!std::isfinite(limit) || limit < 0 || limit > 0.5) return;
+    guardEnabled_ = true; guardHold_ = hold; speedLimit_ = limit; lastGuard_ = now;
+    if (hold) { guardLatched_ = true; haltLocked(now,"protection_hold"); }
+}
+
+void CommandGate::localBlocked(bool blocked, Clock::time_point now) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    localBlocked_ = blocked;
+    if (blocked) haltLocked(now,"blocked");
 }
 
 GateStatus CommandGate::status(Clock::time_point now) const {

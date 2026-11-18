@@ -63,6 +63,8 @@ public:
     void stop(Clock::time_point now);
     void estop(Clock::time_point now);
     void resume(Clock::time_point now);
+    void protection(bool hold, double speedLimit, Clock::time_point now);
+    void localBlocked(bool blocked, Clock::time_point now);
 
     // Called by the output loop (20 Hz). nullopt = send nothing (Pico link timeout takes over).
     std::optional<WheelCommand> tick(Clock::time_point now);
@@ -87,6 +89,9 @@ private:
     bool estop_ = false;
     bool linkConnected_ = false;
     bool hasMotion_ = false;
+    bool guardEnabled_ = false, guardHold_ = false, guardLatched_ = false, localBlocked_ = false;
+    double speedLimit_ = 0.5;
+    Clock::time_point lastGuard_{};
     Motion motion_;
     std::optional<SteerMode> pendingMode_;
     Clock::time_point lastMotion_{};
