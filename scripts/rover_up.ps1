@@ -29,7 +29,7 @@ param(
     [string]$PersonSource = '',                          # explore: camera stream for person stop
     [string[]]$LaptopArgs = @(),                         # extra arguments for the laptop runner
     [string]$Rover = $(if ($env:ROVER_SSH) { $env:ROVER_SSH } else { 'rover@rover' }),
-    [string]$RemoteDir = $(if ($env:ROVER_DIR) { $env:ROVER_DIR } else { '~/yw_teleop' }),
+    [string]$RemoteDir = $(if ($env:ROVER_DIR) { $env:ROVER_DIR } else { '~/rover_demo' }),   # Pi build of this branch
     [switch]$Print
 )
 
