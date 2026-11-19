@@ -2,7 +2,7 @@
 E-stop stay on the gamepad / the OpenCV control window.
 
 Topics (frames: map -> base_link):
-  /map              Grid        SLAM occupancy, value 0 free .. 100 occupied, 255 unknown
+  /map              Grid        SLAM occupancy as RGBA cells (white free, black occupied, grey unknown)
   /tf               FrameTransform  map -> base_link (SLAM pose)
   /scan             LaserScan   latest LiDAR scan in base_link (robot frame, 1 deg bins)
   /markers          SceneUpdate robot body, trajectory, planned path, frontiers (id), goal
@@ -72,18 +72,23 @@ class FoxgloveView:
             return
         iy0, iy1, ix0, ix1 = bounds
         lo = slam.logodds[iy0:iy1, ix0:ix1]
-        value = np.where(np.abs(lo) <= 0.05, 255,
-                         np.clip(100.0 / (1.0 + np.exp(-lo)), 0, 100)).astype(np.uint8)
-        rows, cols = value.shape
+        # Same look as the OpenCV map: white free, black occupied, grey unknown (RGBA cells,
+        # 3D panel colour mode "RGBA (separate fields)").
+        gray = (255.0 * (1.0 - 1.0 / (1.0 + np.exp(-lo)))).astype(np.uint8)
+        rows, cols = gray.shape
+        rgba = np.empty((rows, cols, 4), np.uint8)
+        rgba[..., 0] = rgba[..., 1] = rgba[..., 2] = gray
+        rgba[..., 3] = 255
         res = slam.config.resolution
         x0, y0 = slam.origin + ix0 * res, slam.origin + iy0 * res
+        u8 = PackedElementFieldNumericType.Uint8
         foxglove.log("/map", Grid(
             timestamp=_stamp(), frame_id="map", pose=_pose(x0, y0),
             column_count=cols, cell_size=Vector2(x=res, y=res),
-            row_stride=cols, cell_stride=1,
-            fields=[PackedElementField(name="value", offset=0,
-                                       type=PackedElementFieldNumericType.Uint8)],
-            data=value.tobytes()))
+            row_stride=cols * 4, cell_stride=4,
+            fields=[PackedElementField(name=n, offset=i, type=u8)
+                    for i, n in enumerate(("red", "green", "blue", "alpha"))],
+            data=rgba.tobytes()))
 
     def publish_pose(self, slam, explorer) -> None:
         x, y, yaw = slam.pose
