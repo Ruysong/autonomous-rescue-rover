@@ -14,7 +14,7 @@ Examples (from the repository root):
   scripts\rover_up.bat -Pico mock                        # Pi without Pico (no motor output)
   scripts\rover_up.bat -Pico mock -NoGamepad -Autostart  # exploration in the mock world
   scripts\rover_up.bat -PersonSource http://rover:8080/stream   # stop when a person is seen
-  scriptsover_up.bat -PersonSource http://rover:8080/stream -Foxglove   # + Foxglove live view
+  scripts\rover_up.bat -PersonSource http://rover:8080/stream -Foxglove   # + Foxglove live view
   scripts\rover_up.bat -Mode teleop                      # fallback: gamepad only, no map window
   scripts\rover_up.bat -Print                            # only print the two commands
 #>
