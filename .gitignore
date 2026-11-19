@@ -221,3 +221,8 @@ __marimo__/
 
 # RoverAid run logs and saved maps (laptop/navigation/run_explore.py)
 /logs/
+
+# Local AI assets
+/models/
+/runtime/
+*.gguf

@@ -46,6 +46,7 @@ class Observation:
     frame_at: float
     confidence: float | None
     annotated: Any
+    people: tuple = ()
 
 
 class VideoWorker:
@@ -90,10 +91,11 @@ class VideoWorker:
                 if not ok:
                     raise RuntimeError("Video stream ended or disconnected")
                 frame_at = time.monotonic()
-                confidence, annotated = detector.detect(frame)
+                people, annotated = detector.observe(frame)
+                confidence = max((p['confidence'] for p in people), default=None)
                 sequence += 1
                 with self._lock:
-                    self.latest = Observation(sequence, frame_at, confidence, annotated)
+                    self.latest = Observation(sequence, frame_at, confidence, annotated, tuple(people))
                     if confidence is not None:
                         self.person_event = (sequence, frame_at, confidence)
                 if frame_interval:

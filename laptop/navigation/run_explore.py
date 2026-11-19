@@ -8,8 +8,9 @@ Start this first, then on the Pi:  rover_controller --host <laptop address>
 The robot follows paths only in autonomous mode: --autostart sends set_mode autonomous, or press
 Start on the gamepad (--gamepad: LB-deadman manual driving, Back = E-stop, as in run_gamepad).
 
---person-source runs the YOLO person detector on the rover camera; the mission controller
-(3 frames in a row) then cancels exploring and sends stop, and the map pose and image are saved.
+--person-source runs YOLO observations and an image-space caution/hold policy. A person
+detection alone does not stop exploration. Stale video and sustained protection-zone occupancy
+latch a hold until the operator resumes with clear fresh video. --llm enables async Qwen selection.
 
 Map window keys: space = start / pause exploring, m = manual mode, s = save map, q = quit.
 Every scan and telemetry message is logged (jsonl) so the run can be replayed offline:
@@ -31,8 +32,11 @@ import cv2
 import numpy as np
 
 from laptop.communication.manager import CommunicationManager
-from laptop.communication.messages import make_estop, make_set_mode, make_stop
-from laptop.mission.controller import MissionController, PersonObservation
+from laptop.communication.messages import make_estop, make_set_mode, make_stop, make_resume, make_protection
+from laptop.mission.ai_selector import AISelector
+from laptop.mission.local_reasoner import LocalReasoner
+from laptop.mission.visual_guard import VisualGuard, GuardConfig
+from .dashboard import Dashboard
 
 from .explorer import Explorer, ExplorerConfig
 from .slam import ScanSlam
@@ -153,15 +157,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--replay", type=Path)
     parser.add_argument("--no-match", action="store_true", help="replay: odometry only")
     parser.add_argument("--duration", type=float, default=0.0, help="s, quit after (tests)")
-    parser.add_argument("--person-source", help="camera stream / video / index for person stop")
+    parser.add_argument("--person-source", help="camera stream / video / index for observation + visual protection")
     parser.add_argument("--model", default="yolo26n.pt")
     parser.add_argument("--confidence", type=float, default=0.4)
-    parser.add_argument("--confirm-frames", type=int, default=3)
+    parser.add_argument('--llm', action='store_true', help='Enable real local Qwen goal selection')
+    parser.add_argument('--ai-endpoint',default='http://127.0.0.1:8091')
+    parser.add_argument('--ai-assets',type=Path,help='Asset root containing runtime/ and models/; auto-start local Qwen')
+    parser.add_argument('--mission',default='Find people and report observations')
+    parser.add_argument('--guard-config',type=Path,default=Path('laptop/config/mission.json'))
     args = parser.parse_args(argv)
 
     if args.replay:
         return replay(args.replay, not args.no_match, not args.no_view)
     window = not args.no_view and gui_available()
+    # The dashboard is bounded independently of video/map resolution.
     if not args.no_view and not window:
         print(f"OpenCV has no GUI here: the map is written to {LIVE_MAP} every second "
               "(open it in VS Code); keys are not available, use the gamepad or Ctrl+C.")
@@ -174,10 +183,28 @@ def main(argv: list[str] | None = None) -> int:
     def send(message: dict) -> bool:
         if comm is None or not comm.robot_connected:
             return False
+        moving = message.get('type') in ('motion','drive') or (message.get('type')=='path' and message.get('points')) or (message.get('type')=='set_mode' and message.get('mode')=='autonomous')
+        if moving and not explorer.telemetry.get('protection_supported'): return False
         log.write("out", message)
         return comm.send(message)
 
-    explorer = Explorer(slam, send, ExplorerConfig(speed=args.speed))
+    settings=json.loads(args.guard_config.read_text(encoding='utf-8'))
+    guard=VisualGuard(GuardConfig(**settings['visual_guard']))
+    supervisor=None
+    def reason(snapshot):
+        if supervisor is not None: supervisor.ensure_ready()
+        return LocalReasoner(args.ai_endpoint)(snapshot)
+    if args.llm and args.ai_assets:
+        from laptop.mission.local_model import LocalModelServer
+        supervisor=LocalModelServer(args.ai_assets,args.ai_endpoint)
+    selector=AISelector(reason,args.mission,event=lambda kind,data:log.write(kind,data)) if args.llm else None
+    explorer = Explorer(slam, send, ExplorerConfig(speed=args.speed),selector=selector)
+    dashboard=Dashboard() if window else None
+    latest_frame=None
+    visual_level='observing'
+    operator_paused=False
+    guard_held=False
+    protection_sent_at=0.0
 
     last_mode = {"value": None}
     mission_state = {"stopped": False}
@@ -188,7 +215,7 @@ def main(argv: list[str] | None = None) -> int:
         # Switching the robot to autonomous (gamepad Start, --autostart, space) starts exploring.
         mode = message.get("control_mode")
         if (mode == "autonomous" and last_mode["value"] != "autonomous"
-                and not explorer.status.active and not mission_state["stopped"]):
+                and not explorer.status.active and not mission_state["stopped"] and not operator_paused and not guard_held):
             explorer.start()
         last_mode["value"] = mode
         if pad_controller is not None:
@@ -213,26 +240,15 @@ def main(argv: list[str] | None = None) -> int:
     comm.start()
     print(f"log: {log.path}")
 
-    video = mission = None
+    video = None
     last_frame = 0
     if args.person_source:
         from laptop.demo.live_person_stop import VideoWorker
 
-        class ExplorerNavigator:
-            def cancel_goal(self) -> bool:
-                mission_state["stopped"] = True
-                explorer.pause("PERSON FOUND - stopped")
-                return True
-
-        class RoverStop:
-            def send_stop(self) -> bool:
-                return send(make_stop())
-
         source = int(args.person_source) if args.person_source.isdecimal() else args.person_source
         video = VideoWorker(source, args.model, args.confidence)
         video.start()
-        mission = MissionController(ExplorerNavigator(), RoverStop(), args.confirm_frames)
-        print(f"person stop: {args.person_source} (confirm {args.confirm_frames} frames)")
+        print(f"person observations + visual guard: {args.person_source}")
     autostart_pending = args.autostart
 
     next_tick = time.monotonic()
@@ -241,31 +257,41 @@ def main(argv: list[str] | None = None) -> int:
     try:
         while time.monotonic() < end:
             now = time.monotonic()
-            if autostart_pending and comm.robot_connected and explorer.telemetry:
+            if autostart_pending and comm.robot_connected and explorer.telemetry.get('protection_supported') and not guard_held:
                 send(make_set_mode("autonomous"))
                 explorer.start()
                 autostart_pending = False
             if pad is not None:
                 for message in pad_controller.step(pad.read()):
                     send(message)
-            if mission is not None:
-                observation, _, video_error = video.snapshot()
-                if observation is not None and observation.sequence != last_frame:
-                    last_frame = observation.sequence
-                    if mission.observe(PersonObservation(observation.sequence,
-                                                         round(time.time(), 2),
-                                                         observation.confidence)):
-                        x, y, yaw = slam.pose
-                        found = LOG_DIR / f"person_{time.strftime('%H%M%S')}"
-                        cv2.imencode(".jpg", observation.annotated)[1].tofile(
-                            str(found.with_suffix(".jpg")))
-                        found.with_suffix(".json").write_text(json.dumps({
-                            "map_pose": [x, y, yaw], "confidence": observation.confidence,
-                            "time": time.time()}, indent=2), encoding="utf-8")
-                        print(f"\nPERSON FOUND at map ({x:+.2f}, {y:+.2f}) "
-                              f"conf {observation.confidence:.2f} -> {found}.jpg")
-                if video_error and int(now) % 5 == 0 and int(now - 0.05) % 5 != 0:
-                    print(f"\n[video] {video_error}")
+            people=[]; frame_at=None
+            if video is not None:
+                observation, _, video_error=video.snapshot()
+                if observation is not None:
+                    latest_frame=observation.annotated
+                    frame_at=observation.frame_at; people=list(observation.people)
+                    if observation.sequence!=last_frame:
+                        last_frame=observation.sequence
+                        if selector: selector.observe(people,frame_at)
+                        log.write('observation',{'people':people,'frame_at':frame_at})
+                # Reverse view is not covered by the front camera; LiDAR guards both directions.
+                duties=explorer.telemetry.get('duty',[0,0])
+                visual_level=guard.update(people,frame_at,forward=sum(duties)>=0)
+                if video_error:
+                    guard.reason='Video error: '+video_error
+                    if int(now)%5==0 and int(now-.05)%5!=0: log.write('video_error',{'error':video_error})
+                if visual_level=='hold' and not guard_held:
+                    guard_held=True; explorer.pause(guard.reason)
+                    log.write('protection_hold',{'reason':guard.reason})
+            if now-protection_sent_at>=.15 and comm.robot_connected:
+                protection_sent_at=now
+                if explorer.telemetry.get('protection_supported'):
+                    send(make_protection(guard_held,guard.config.caution_speed if visual_level=='caution' else .5))
+                else:
+                    explorer.pause('Robot update required: protection protocol unavailable')
+                    send(make_estop())
+            if (guard_held or operator_paused) and explorer.status.active:
+                explorer.pause('Protection / operator hold')
             if now - last_explore >= 0.5:
                 last_explore = now
                 explorer.tick()
@@ -284,33 +310,36 @@ def main(argv: list[str] | None = None) -> int:
                 LIVE_MAP.parent.mkdir(parents=True, exist_ok=True)
                 cv2.imwrite(str(LIVE_MAP), img)
             if window and int(now * 5) != int((now - 0.05) * 5):
-                with explorer.lock:
-                    img = render(slam, explorer)
-                cv2.imshow("RoverAid map", img)
-                key = cv2.waitKey(1) & 0xFF
-                if key == ord("q"):
-                    break
-                if key == ord(" "):
-                    if explorer.status.active:
-                        explorer.pause()
-                    else:
-                        send(make_set_mode("autonomous"))
-                        explorer.start()
-                if key == ord("m"):
-                    explorer.pause()
-                    send(make_set_mode("manual"))
-                if key == ord("e"):
-                    explorer.pause("e-stop")
-                    send(make_estop())
-                if key == ord("s"):
-                    with explorer.lock:
-                        save_map(slam, explorer, LOG_DIR / f"map_{time.strftime('%H%M%S')}")
+                with explorer.lock: map_image=render(slam,explorer)
+                panel=dashboard.draw(map_image,latest_frame,explorer,selector,guard,args.llm,video is not None)
+                cv2.imshow("RoverAid map",panel)
+                cv2.setMouseCallback("RoverAid map",dashboard.mouse)
+                key=cv2.waitKey(1)&0xFF
+                action=dashboard.pop_action()
+                if key==ord('q'): break
+                if key==ord('e'): action='estop'
+                if key==ord(' '): action='pause' if explorer.status.active else 'resume'
+                if key==ord('m'): action='manual'
+                if action in ('pause','estop','manual'):
+                    operator_paused=True; explorer.pause(action)
+                    send(make_estop() if action=='estop' else make_stop())
+                    if action=='manual': send(make_set_mode('manual'))
+                if action=='resume':
+                    if video is None or guard.resume():
+                        guard_held=False; operator_paused=False
+                        send(make_protection(False,.5));send(make_resume())
+                        send(make_set_mode('autonomous'));explorer.start()
+                    else: explorer.status.note='Cannot resume: wait for fresh, clear video'
+                if key==ord('s'):
+                    with explorer.lock: save_map(slam,explorer,LOG_DIR/f"map_{time.strftime('%H%M%S')}")
             next_tick += 0.05
             time.sleep(max(0.0, next_tick - time.monotonic()))
     except KeyboardInterrupt:
         pass
     finally:
         explorer.pause("quit")
+        if selector: selector.close()
+        if supervisor: supervisor.close()
         if comm.robot_connected:
             comm.send_stop()
         with explorer.lock:

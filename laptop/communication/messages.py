@@ -9,7 +9,7 @@ from typing import Any, Mapping
 PROTOCOL_VERSION = "1.2"
 SUPPORTED_VERSIONS = {"1.0", "1.1", "1.2"}
 V11_TYPES = {"motion", "set_mode", "estop", "resume"}
-V12_TYPES = {"path", "pose_correction", "scan"}
+V12_TYPES = {"protection", "path", "pose_correction", "scan"}
 STEER_MODES = {"normal", "spin"}
 CONTROL_MODES = {"manual", "autonomous"}
 
@@ -167,6 +167,10 @@ def validate_message(message: Mapping[str, Any]) -> None:
     elif message_type == "set_mode":
         if message.get("mode") not in CONTROL_MODES:
             raise ProtocolError("mode must be manual or autonomous")
+    elif message_type == "protection":
+        if type(message.get('hold')) is not bool: raise ProtocolError('hold must be boolean')
+        speed = _finite_number('speed_limit',message.get('speed_limit'))
+        if not 0 <= speed <= .5: raise ProtocolError('speed_limit must be 0..0.5')
     elif message_type == "path":
         _bounded("id", message.get("id"), 1e9)
         speed = _finite_number("speed", message.get("speed", 0.0))
@@ -209,3 +213,9 @@ def validate_message(message: Mapping[str, Any]) -> None:
             raise ProtocolError("last_command_age must be non-negative")
     else:
         raise ProtocolError(f"Unsupported message type: {message_type}")
+
+
+def make_protection(hold=False, speed_limit=.5):
+    message={'_version':'1.2','type':'protection','hold':hold,'speed_limit':speed_limit}
+    validate_message(message)
+    return message

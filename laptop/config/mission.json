@@ -1,0 +1,7 @@
+{
+ "visual_guard": {
+  "roi": [0.30,0.55,0.70,1.0], "caution_area":0.04, "hold_area":0.16,
+  "overlap":0.25, "persistence_s":0.3, "max_frame_age_s":1.0,
+  "clear_s":1.0, "caution_speed":0.05
+ }
+}
