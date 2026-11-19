@@ -3,4 +3,4 @@ opencv-python>=4.8,<5
 ultralytics>=8.4
 pillow>=10
 pygame>=2.5
-foxglove-sdk>=0.9
+foxglove-sdk>=0.31
