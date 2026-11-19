@@ -7,17 +7,18 @@ Ctrl+C (or closing the SSH side) stops rover_controller; the laptop runner windo
 closed when the script ends.
 
 Examples (from the repository root):
-  scripts\rover_up.bat                                   # gamepad drive, real Pico
+  scripts\rover_up.bat                                   # map window + gamepad, real Pico.
+                                                         # Manual until pad Start / Space (M returns)
   scripts\rover_up.bat -SteerOnly                        # dry run: steering only, wheel duty 0
   scripts\rover_up.bat -MaxDuty 0.2                      # cap wheel duty
   scripts\rover_up.bat -Pico mock                        # Pi without Pico (no motor output)
-  scripts\rover_up.bat -Mode explore -Pico mock          # exploration in the mock world
-  scripts\rover_up.bat -Mode explore                     # exploration, real rover (Start on pad)
-  scripts\rover_up.bat -Mode explore -PersonSource http://rover:8080/stream
+  scripts\rover_up.bat -Pico mock -NoGamepad -Autostart  # exploration in the mock world
+  scripts\rover_up.bat -PersonSource http://rover:8080/stream   # stop when a person is seen
+  scripts\rover_up.bat -Mode teleop                      # fallback: gamepad only, no map window
   scripts\rover_up.bat -Print                            # only print the two commands
 #>
 param(
-    [ValidateSet('teleop', 'explore')] [string]$Mode = 'teleop',
+    [ValidateSet('explore', 'teleop')] [string]$Mode = 'explore',     # teleop = run_gamepad only (no map window)
     [ValidateSet('real', 'mock')] [string]$Pico = 'real',
     [ValidateRange(-1.0, 0.6)] [double]$MaxDuty = -1.0,   # < 0: use robot/config/rover.json
     [switch]$SteerOnly,                                  # same as -MaxDuty 0
