@@ -3,6 +3,8 @@ import cv2
 import numpy as np
 import textwrap
 
+from laptop.teleop.controller import KEYMAP
+
 class Dashboard:
     def __init__(self):
         self.action=None
@@ -15,7 +17,7 @@ class Dashboard:
         value,self.action=self.action,None
         return value
     def draw(self,map_image,frame,explorer,selector,guard,llm,vision):
-        canvas=np.full((760,1180,3),24,np.uint8)
+        canvas=np.full((860,1180,3),24,np.uint8)
         for i,(action,label) in enumerate(self.buttons):
             x=12+i*160
             cv2.rectangle(canvas,(x,10),(x+150,55),(40,40,180) if action=='estop' else (70,65,55),-1)
@@ -42,13 +44,20 @@ class Dashboard:
             cv2.putText(canvas,title,(x,548),font,.5,(150,150,150),1)
             for i,row in enumerate(rows):
                 cv2.putText(canvas,row,(x,572+i*20),font,.48,(230,230,230),1)
+        # Gamepad help while driving by hand (11/19): one stick like a driving game.
+        if t.get('control_mode')=='manual':
+            cv2.rectangle(canvas,(596,660),(1168,792),(48,48,48),-1)
+            cv2.putText(canvas,'MANUAL - GAMEPAD',(606,680),font,.5,(120,200,255),1)
+            for i,(key,action) in enumerate(KEYMAP):
+                cv2.putText(canvas,key,(606,700+i*16),font,.42,(255,255,255),1)
+                cv2.putText(canvas,action,(726,700+i*16),font,.42,(210,210,210),1)
         lines=['VISION: '+(guard.level.upper()+' - '+guard.reason if vision else 'Not enabled'),
             'AI: '+(selector.status if selector else 'Rule baseline (LLM off)')+'   |   EXPLORER: '+str(explorer.status.note),
             'Space: pause/resume | E: emergency stop | M: manual | Q: quit   (image zones are visual cues, not distance)']
-        y=692
+        y=800
         for line in lines:
             for wrapped in textwrap.wrap(line,110) or ['']:
-                if y>752:break
+                if y>852:break
                 cv2.putText(canvas,wrapped,(14,y),font,.48,(230,230,230),1)
                 y+=20
         return canvas

@@ -28,6 +28,7 @@ from foxglove.messages import (
 )
 
 from laptop.navigation.dashboard import PICO_FLAGS
+from laptop.teleop.controller import KEYMAP
 
 BODY = (0.60, 0.60, 0.30)  # m, approximate box for the robot marker
 
@@ -186,4 +187,6 @@ class FoxgloveView:
             "ai": selector.status if selector else "rule baseline (LLM off)",
             "explorer": str(explorer.status.note) if explorer is not None else "",
             "exploring": bool(explorer.status.active) if explorer is not None else False,
+            # Gamepad help while in manual mode (same text as the OpenCV window).
+            "gamepad": ({k: v for k, v in KEYMAP} if t.get("control_mode") == "manual" else {}),
         })

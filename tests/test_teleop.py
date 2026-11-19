@@ -2,7 +2,7 @@ import unittest
 
 from laptop.communication.messages import decode_message, encode_message
 from laptop.teleop.controller import (
-    AXIS_LY, AXIS_RT, AXIS_RX, BTN_A, BTN_B, BTN_BACK, BTN_LB, BTN_START,
+    AXIS_LX, AXIS_LY, AXIS_RT, BTN_A, BTN_B, BTN_BACK, BTN_LB, BTN_START,
     PadState, TeleopController, shape,
 )
 
@@ -11,7 +11,7 @@ REST = [0.0, 0.0, 0.0, 0.0, -1.0, -1.0]
 
 def pad(buttons=(), **axes):
     values = list(REST)
-    names = {"ly": AXIS_LY, "rx": AXIS_RX, "rt": AXIS_RT}
+    names = {"ly": AXIS_LY, "lx": AXIS_LX, "rt": AXIS_RT}
     for name, value in axes.items():
         values[names[name]] = value
     return PadState(connected=True, axes=tuple(values), buttons=frozenset(buttons))
@@ -45,9 +45,15 @@ class TeleopTests(unittest.TestCase):
 
     def test_boost_and_steer_right(self):
         c = TeleopController()
-        out = c.step(pad([BTN_LB], ly=-1.0, rx=1.0, rt=1.0))
+        out = c.step(pad([BTN_LB], ly=-1.0, lx=1.0, rt=1.0))
         self.assertAlmostEqual(out[0]["v"], c.limits.max_speed)
         self.assertAlmostEqual(out[0]["kappa"], -c.limits.max_curvature)
+
+    def test_one_stick_diagonal_drives_and_steers(self):
+        c = TeleopController()
+        out = c.step(pad([BTN_LB], ly=-0.7071, lx=-0.7071, rt=1.0))  # full up-left on a round gate
+        self.assertAlmostEqual(out[0]["v"], c.limits.max_speed, places=3)
+        self.assertAlmostEqual(out[0]["kappa"], c.limits.max_curvature, places=3)
 
     def test_release_deadman_sends_one_stop(self):
         c = TeleopController()
@@ -78,7 +84,7 @@ class TeleopTests(unittest.TestCase):
         c.step(pad())
         c.step(pad([BTN_B]))
         self.assertEqual(c.steer_mode, "spin")
-        out = c.step(pad([BTN_LB], rx=-1.0))
+        out = c.step(pad([BTN_LB], lx=-1.0))
         self.assertEqual(out[0]["steer_mode"], "spin")
         self.assertGreater(out[0]["wz"], 0.0)  # stick left = CCW
         c.step(pad([BTN_A]))

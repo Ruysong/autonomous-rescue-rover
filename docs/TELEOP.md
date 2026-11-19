@@ -12,14 +12,14 @@ gamepad ── laptop/teleop/run_gamepad.py ──TCP 9998 motion──▶ robot
 | 입력 | 동작 |
 |---|---|
 | **LB (누르고 있기)** | deadman. 떼면 정지 1회 후 명령을 보내지 않음 → 로버 Gate가 0.5 s 뒤 timeout |
-| 왼쪽 스틱 위 / 아래 | 전진 / 후진 속도 |
-| 오른쪽 스틱 좌 / 우 | 조향 (normal: 회전 곡률, spin: 회전 속도) |
+| 왼쪽 스틱 (하나로 전부) | 위 / 아래 = 전진 / 후진, 좌 / 우 = 조향 (normal: 회전 곡률, spin: 회전 속도). 대각선이면 둘 다 (게임처럼, 11/19 변경) |
 | RT | 속도 증가. 놓으면 최대의 30 %, 끝까지 당기면 100 % |
 | A | 조향 모드 normal (앞 · 뒤 바퀴 반대로, 이 로버의 Ackermann) |
 | B | 조향 모드 spin (제자리 회전). 로버가 `spin_enabled`를 보내기 전에는 거부 |
 | Back | **E-stop** (로버에서 래치) |
 | Start | E-stop 중이면 해제, 아니면 manual ↔ autonomous 전환 |
 
+- 수동 모드에서는 대시보드(OpenCV 창 · Foxglove `/mission`)에 이 키맵이 표시된다.
 - 확인한 패드: Flydigi 2.4G (X360 모드, XInput 순서). 다른 XInput 패드도 같은 번호. C · Z · M1~M4 같은 추가 버튼은 PC에 안 보이므로, 원하면 Flydigi 앱에서 뒷면 버튼을 LB로 매핑해 deadman으로 쓴다.
 - 조향 모드가 바뀌면 로버가 스스로 정지 → 조향 → 구동 순서를 지킨다 (약 0.6 s).
 - 패드가 빠지면 정지 1회. 노트북 · Wi-Fi가 끊기면 로버 Gate가 정지, Pico는 300 ms 뒤 자체 정지.

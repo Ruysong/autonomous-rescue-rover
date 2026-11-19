@@ -3,8 +3,8 @@
 Layout (Xbox / XInput order; checked on a Flydigi pad in X360 mode, 11/14):
 
     LB (hold)        deadman. Released -> one stop, then silence (robot gate times out).
-    left stick Y     speed (up = forward)
-    right stick X    steering (normal: curvature, spin: turn rate)
+    left stick       one stick like a driving game (11/19): up / down = forward / reverse,
+                     left / right = steering (normal: curvature, spin: turn rate). Diagonal = both.
     RT               speed boost: 30 % of max at rest, 100 % fully pulled
     A                steer mode normal (front and rear steer opposite; Ackermann on this rover)
     B                steer mode spin (refused unless the robot reports spin_enabled)
@@ -25,6 +25,16 @@ from laptop.communication.messages import (
     make_resume,
     make_set_mode,
     make_stop,
+)
+
+# Shown on the dashboard / Foxglove while in manual mode.
+KEYMAP = (
+    ("LB (hold)", "deadman - nothing moves unless held"),
+    ("Left stick", "up/down = forward/reverse, left/right = steer"),
+    ("RT", "boost: 30 % released .. 100 % pulled"),
+    ("A / B", "steer mode normal / spin (spin off until measured)"),
+    ("Back", "E-STOP (latched)"),
+    ("Start", "resume after E-stop / manual <-> autonomous"),
 )
 
 # Button / axis indices (SDL XInput order).
@@ -81,6 +91,16 @@ def shape(value: float, deadzone: float, expo: float) -> float:
     scaled = min(1.0, (magnitude - deadzone) / (1.0 - deadzone))
     scaled = (1.0 - expo) * scaled + expo * scaled ** 3
     return scaled if value > 0 else -scaled
+
+
+def circle_to_square(x: float, y: float) -> tuple[float, float]:
+    """A stick moves inside a circle, so a full diagonal reads about (0.71, 0.71). Stretch it so
+    a full diagonal gives full speed AND full steering, like a driving game. Axes unchanged."""
+    m = max(abs(x), abs(y))
+    if m <= 1e-9:
+        return 0.0, 0.0
+    r = min(1.0, (x * x + y * y) ** 0.5)
+    return x / m * r, y / m * r
 
 
 @dataclass
@@ -154,8 +174,9 @@ class TeleopController:
         boost = (pad.axis(AXIS_RT) + 1.0) / 2.0  # trigger -1..1 -> 0..1
         base = self.config.base_speed_fraction
         speed_scale = base + (1.0 - base) * max(0.0, min(1.0, boost))
-        throttle = -shape(pad.axis(AXIS_LY), self.config.deadzone, self.config.expo)
-        steer = -shape(pad.axis(AXIS_RX), self.config.deadzone, self.config.expo)  # right = -
+        lx, ly = circle_to_square(pad.axis(AXIS_LX), pad.axis(AXIS_LY))
+        throttle = -shape(ly, self.config.deadzone, self.config.expo)
+        steer = -shape(lx, self.config.deadzone, self.config.expo)  # right = -
 
         if self.steer_mode == "spin":
             wz_max = self.limits.max_speed / self.limits.y_mid
