@@ -14,6 +14,7 @@ Examples (from the repository root):
   scripts\rover_up.bat -Pico mock                        # Pi without Pico (no motor output)
   scripts\rover_up.bat -Pico mock -NoGamepad -Autostart  # exploration in the mock world
   scripts\rover_up.bat -PersonSource http://rover:8080/stream   # stop when a person is seen
+  scriptsover_up.bat -PersonSource http://rover:8080/stream -Foxglove   # + Foxglove live view
   scripts\rover_up.bat -Mode teleop                      # fallback: gamepad only, no map window
   scripts\rover_up.bat -Print                            # only print the two commands
 #>
@@ -27,6 +28,7 @@ param(
     [switch]$Autostart,                                  # explore: start without the Start button
     [switch]$NoGamepad,                                  # explore: no gamepad
     [string]$PersonSource = '',                          # explore: camera stream for person stop
+    [switch]$Foxglove,                                   # explore: also publish to the Foxglove app (ws://127.0.0.1:8765)
     [string[]]$LaptopArgs = @(),                         # extra arguments for the laptop runner
     [string]$Rover = $(if ($env:ROVER_SSH) { $env:ROVER_SSH } else { 'rover@rover' }),
     [string]$RemoteDir = $(if ($env:ROVER_DIR) { $env:ROVER_DIR } else { '~/rover_demo' }),   # Pi build of this branch
@@ -52,6 +54,7 @@ if ($Mode -eq 'teleop') {
     if (-not $NoGamepad) { $laptop += '--gamepad' }
     if ($Autostart) { $laptop += '--autostart' }
     if ($PersonSource) { $laptop += @('--person-source', $PersonSource) }
+    if ($Foxglove) { $laptop += '--foxglove' }
 }
 $laptop += $LaptopArgs
 

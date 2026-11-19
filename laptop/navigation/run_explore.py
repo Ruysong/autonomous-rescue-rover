@@ -165,6 +165,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--ai-assets',type=Path,help='Asset root containing runtime/ and models/; auto-start local Qwen')
     parser.add_argument('--mission',default='Find people and report observations')
     parser.add_argument('--guard-config',type=Path,default=Path('laptop/config/mission.json'))
+    parser.add_argument('--foxglove', action='store_true',
+                        help='also publish a live view for the Foxglove app (ws://127.0.0.1:8765)')
+    parser.add_argument('--foxglove-port', type=int, default=8765)
     args = parser.parse_args(argv)
 
     if args.replay:
@@ -224,9 +227,17 @@ def main(argv: list[str] | None = None) -> int:
             if message.get("control_mode") in ("manual", "autonomous"):
                 pad_controller.control_mode = message["control_mode"]
 
+    fox = None
+    if args.foxglove:
+        from laptop.navigation.foxglove_view import FoxgloveView
+        fox = FoxgloveView(port=args.foxglove_port)
+        print(f"Foxglove: open the Foxglove app -> Open connection -> {fox.url}")
+
     def on_scan(message: dict[str, Any]) -> None:
         log.write("in", message)
         explorer.on_scan(message)
+        if fox is not None:
+            fox.publish_scan(message)
 
     pad = pad_controller = None
     if args.gamepad:
@@ -311,6 +322,13 @@ def main(argv: list[str] | None = None) -> int:
                     img = render(slam, explorer)
                 LIVE_MAP.parent.mkdir(parents=True, exist_ok=True)
                 cv2.imwrite(str(LIVE_MAP), img)
+            if fox is not None:
+                if fox.due('fast', 0.1):
+                    with explorer.lock: fox.publish_pose(slam, explorer)
+                    fox.publish_status(explorer.telemetry, guard, video is not None, selector, explorer)
+                if fox.due('camera', 0.1): fox.publish_camera(latest_frame)
+                if fox.due('map', 0.5):
+                    with explorer.lock: fox.publish_map(slam)
             if window and int(now * 5) != int((now - 0.05) * 5):
                 with explorer.lock: map_image=render(slam,explorer)
                 panel=dashboard.draw(map_image,latest_frame,explorer,selector,guard,args.llm,video is not None)
@@ -354,6 +372,8 @@ def main(argv: list[str] | None = None) -> int:
             video.stop()
         if window:
             cv2.destroyAllWindows()
+        if fox is not None:
+            fox.close()
     return 0
 
 
