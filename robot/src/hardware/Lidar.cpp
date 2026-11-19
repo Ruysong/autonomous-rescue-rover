@@ -41,8 +41,8 @@ bool readExact(int fd, std::uint8_t* out, std::size_t n, std::chrono::millisecon
         fd_set set;
         FD_ZERO(&set);
         FD_SET(fd, &set);
-        timeval tv{0, static_cast<suseconds_t>(
-                          std::chrono::duration_cast<std::chrono::microseconds>(left).count())};
+        const auto us = std::chrono::duration_cast<std::chrono::microseconds>(left).count();
+        timeval tv{static_cast<time_t>(us / 1000000), static_cast<suseconds_t>(us % 1000000)};
         if (::select(fd + 1, &set, nullptr, nullptr, &tv) <= 0) return false;
         const ssize_t r = ::read(fd, out + got, n - got);
         if (r <= 0) return false;
@@ -150,11 +150,15 @@ void RplidarC1::run() {
         ScanAssembler assembler(mount_);
         std::uint8_t node[5];
         int bad = 0;
+        // The C1 sends the descriptor at once but nodes only after the motor is up to
+        // speed (1-2 s). A short first timeout would send STOP and restart forever.
+        bool firstNode = true;
         while (running_) {
-            if (!readExact(fd, node, 5, 1000ms)) {
+            if (!readExact(fd, node, 5, firstNode ? 5000ms : 1000ms)) {
                 std::cerr << "[Lidar] Read timeout; restarting scan\n";
                 break;
             }
+            firstNode = false;
             ScanNode decoded;
             if (!decodeNode(node, decoded)) {
                 // Resync by shifting one byte.
