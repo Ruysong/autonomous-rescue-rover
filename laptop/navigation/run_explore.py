@@ -287,7 +287,9 @@ def main(argv: list[str] | None = None) -> int:
                 protection_sent_at=now
                 if explorer.telemetry.get('protection_supported'):
                     send(make_protection(guard_held,guard.config.caution_speed if visual_level=='caution' else .5))
-                else:
+                elif explorer.telemetry:
+                    # Judge only after the first telemetry: right after connect the dict is
+                    # still empty and an up-to-date robot would be E-stopped by mistake.
                     explorer.pause('Robot update required: protection protocol unavailable')
                     send(make_estop())
             if (guard_held or operator_paused) and explorer.status.active:
