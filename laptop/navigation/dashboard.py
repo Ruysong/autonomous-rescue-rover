@@ -36,24 +36,58 @@ class Dashboard:
                         (20,300),cv2.FONT_HERSHEY_SIMPLEX,.55,(160,160,160),1)
         paste(map_image,600,90,568,430)
         t=explorer.telemetry
-        sensors=t.get('sensors',{})
-        pose=t.get('map_pose') or t.get('odom_pose') or {}
-        def fmt_pose(p):
-            try:return 'x %.2f  y %.2f  yaw %.0f deg'%(p['x'],p['y'],np.degrees(p['yaw']))
-            except (KeyError,TypeError):return '-'
-        lines=['',
-            'ROBOT: '+str(t.get('safety_state','not connected'))+'  |  MODE: '+str(t.get('control_mode','-'))
-                +'  |  FOLLOW: '+str(t.get('follow',{}).get('state','idle')),
-            'SENSORS: '+(', '.join(f'{k} {"OK" if v else "--"}' for k,v in sensors.items()) or '-')
-                +'  |  POSE (map): '+fmt_pose(pose),
-            'VISION: '+(guard.level.upper()+' - '+guard.reason if vision else 'Not enabled'),
-            'AI: '+(selector.status if selector else 'Rule baseline (LLM off)'),
-            'EXPLORER: '+str(explorer.status.note),
+        rover_lines,sensor_lines=status_columns(t)
+        font=cv2.FONT_HERSHEY_SIMPLEX
+        for x,title,rows in ((14,'ROVER',rover_lines),(600,'SENSORS',sensor_lines)):
+            cv2.putText(canvas,title,(x,548),font,.5,(150,150,150),1)
+            for i,row in enumerate(rows):
+                cv2.putText(canvas,row,(x,572+i*20),font,.48,(230,230,230),1)
+        lines=['VISION: '+(guard.level.upper()+' - '+guard.reason if vision else 'Not enabled'),
+            'AI: '+(selector.status if selector else 'Rule baseline (LLM off)')+'   |   EXPLORER: '+str(explorer.status.note),
             'Space: pause/resume | E: emergency stop | M: manual | Q: quit   (image zones are visual cues, not distance)']
-        y=550
-        for line in lines[1:]:
+        y=692
+        for line in lines:
             for wrapped in textwrap.wrap(line,110) or ['']:
-                if y>748:break
-                cv2.putText(canvas,wrapped,(14,y),cv2.FONT_HERSHEY_SIMPLEX,.48,(230,230,230),1)
+                if y>752:break
+                cv2.putText(canvas,wrapped,(14,y),font,.48,(230,230,230),1)
                 y+=20
         return canvas
+
+
+PICO_FLAGS=((1,'link timeout'),(2,'E-stop'),(4,'clamped'),(8,'no command yet'))
+
+
+def _num(values,fmt,n):
+    try:return [fmt%v for v in values][:n] if len(values)>=n else None
+    except TypeError:return None
+
+
+def status_columns(t):
+    """Telemetry -> (rover rows, sensor rows) for the status panel. '-' when missing."""
+    if not t:
+        return ['not connected'],['-']
+    pose=t.get('map_pose') or t.get('odom_pose')
+    try:pose_text='x %.2f m  y %.2f m  yaw %.0f deg'%(pose[0],pose[1],np.degrees(pose[2]))
+    except (TypeError,IndexError,KeyError):pose_text='-'
+    duty=_num(t.get('duty',[]),'%+.2f',2)
+    steer=_num(t.get('steer_deg',[]),'%+.0f',4)
+    pico=t.get('pico',{})
+    flags=int(pico.get('flags',0) or 0)
+    flag_text=', '.join(name for bit,name in PICO_FLAGS if flags&bit) or 'normal'
+    rover=['STATE '+str(t.get('safety_state','-'))+'   MODE '+str(t.get('control_mode','-'))
+            +'   FOLLOW '+str(t.get('follow',{}).get('state','-')),
+        'POSE (map) '+pose_text,
+        'ODOM %.2f m'%float(t.get('odom_distance',0.0) or 0.0)
+            +'   DUTY L/R '+('/'.join(duty) if duty else '-'),
+        'STEER FL FR RL RR '+(' '.join(steer) if steer else '-')+' deg   ('+str(t.get('steer_mode','-'))+')',
+        'PICO '+('OK' if pico.get('ok') else '--')+'  flags '+str(flags)+' ('+flag_text+')']
+    sensors=t.get('sensors',{})
+    sonar=t.get('ultrasonic_cm',[])
+    sonar_text='  '.join(f'{name} {v if isinstance(v,(int,float)) and v>=0 else "--"}'
+                         for name,v in zip(('FL','FR','RL','RR'),sonar)) or '-'
+    enc=t.get('encoders',[])
+    sensor=['LIDAR '+('OK' if sensors.get('lidar') else '--')+'    IMU '+('OK' if sensors.get('imu') else '--'),
+        'ULTRASONIC cm  '+sonar_text,
+        'ENCODER L/R  '+('%d / %d'%(enc[0],enc[1]) if len(enc)>=2 else '-'),
+        'CMD AGE %.2f s'%float(t.get('last_command_age',0.0) or 0.0)]
+    return rover,sensor
