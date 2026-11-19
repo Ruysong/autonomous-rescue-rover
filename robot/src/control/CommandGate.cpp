@@ -68,7 +68,7 @@ void CommandGate::linkDisconnected(Clock::time_point now) {
 
 bool CommandGate::applyMotion(Source source, const Motion& motion, Clock::time_point now) {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (!linkConnected_ || estop_ || localBlocked_ || guardLatched_ || source != sourceOf(controlMode_)) {
+    if (!linkConnected_ || estop_ || blocks(motion) || guardLatched_ || source != sourceOf(controlMode_)) {
         ++ignored_;
         return false;
     }
@@ -121,7 +121,7 @@ void CommandGate::estop(Clock::time_point now) {
 void CommandGate::resume(Clock::time_point now) {
     std::lock_guard<std::mutex> lock(mutex_);
     if (guardEnabled_ && (guardHold_ || now-lastGuard_ >= std::chrono::milliseconds(500))) return;
-    if (localBlocked_ || !linkConnected_) return;
+    if (scanStale_ || !linkConnected_) return;
     guardLatched_ = false;
     estop_ = false;
     haltLocked(now, linkConnected_ ? "stopped" : "disconnected");
@@ -131,8 +131,9 @@ std::optional<WheelCommand> CommandGate::tick(Clock::time_point now) {
     std::lock_guard<std::mutex> lock(mutex_);
 
     if (guardEnabled_ && now-lastGuard_ >= std::chrono::milliseconds(500)) guardLatched_ = true;
-    if (!linkConnected_ || localBlocked_ || guardLatched_) {
-        haltLocked(now, estop_ ? "estop" : !linkConnected_ ? "disconnected" : localBlocked_ ? "blocked" : "protection_hold");
+    const bool blocked = scanStale_ || (hasMotion_ && blocks(motion_));
+    if (!linkConnected_ || blocked || guardLatched_) {
+        haltLocked(now, estop_ ? "estop" : !linkConnected_ ? "disconnected" : blocked ? "blocked" : "protection_hold");
     }
     if (hasMotion_ && now - lastMotion_ >= config_.commandTimeout) {
         haltLocked(now, "timeout");
@@ -209,9 +210,23 @@ void CommandGate::protection(bool hold, double limit, Clock::time_point now) {
 }
 
 void CommandGate::localBlocked(bool blocked, Clock::time_point now) {
+    localBlocked(blocked, blocked, false, now);
+}
+
+void CommandGate::localBlocked(bool forward, bool reverse, bool stale, Clock::time_point now) {
     std::lock_guard<std::mutex> lock(mutex_);
-    localBlocked_ = blocked;
-    if (blocked) haltLocked(now,"blocked");
+    blockedForward_ = forward;
+    blockedReverse_ = reverse;
+    scanStale_ = stale;
+    if (scanStale_ || (hasMotion_ && blocks(motion_))) haltLocked(now, "blocked");
+}
+
+bool CommandGate::blocks(const Motion& m) const {
+    if (scanStale_) return true;
+    if (m.mode == SteerMode::spin) return std::fabs(m.wz) > 1e-6 && (blockedForward_ || blockedReverse_);
+    if (m.v > 1e-6) return blockedForward_;
+    if (m.v < -1e-6) return blockedReverse_;
+    return false;  // steering only
 }
 
 GateStatus CommandGate::status(Clock::time_point now) const {

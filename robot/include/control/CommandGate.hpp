@@ -64,7 +64,10 @@ public:
     void estop(Clock::time_point now);
     void resume(Clock::time_point now);
     void protection(bool hold, double speedLimit, Clock::time_point now);
-    void localBlocked(bool blocked, Clock::time_point now);
+    void localBlocked(bool blocked, Clock::time_point now);  // both directions
+    // LiDAR stop box per direction (forward / reverse) and stale scan. Stale blocks all motion;
+    // a blocked direction only rejects motion toward it, so the rover can still back away.
+    void localBlocked(bool forward, bool reverse, bool stale, Clock::time_point now);
 
     // Called by the output loop (20 Hz). nullopt = send nothing (Pico link timeout takes over).
     std::optional<WheelCommand> tick(Clock::time_point now);
@@ -89,7 +92,9 @@ private:
     bool estop_ = false;
     bool linkConnected_ = false;
     bool hasMotion_ = false;
-    bool guardEnabled_ = false, guardHold_ = false, guardLatched_ = false, localBlocked_ = false;
+    bool guardEnabled_ = false, guardHold_ = false, guardLatched_ = false;
+    bool blockedForward_ = false, blockedReverse_ = false, scanStale_ = false;
+    bool blocks(const Motion& m) const;  // caller holds mutex_
     double speedLimit_ = 0.5;
     Clock::time_point lastGuard_{};
     Motion motion_;

@@ -281,6 +281,16 @@ void testProtection() {
     gate.localBlocked(true,t+640ms);
     check(!gate.applyMotion(Source::autonomous,m,t+650ms),"local obstacle blocks autonomous");
     check(!gate.applyMotion(Source::manual,m,t+650ms),"local obstacle blocks manual");
+    gate.setControlMode(ControlMode::manual,t+652ms);
+    gate.localBlocked(true,false,false,t+652ms);
+    check(!gate.applyMotion(Source::manual,m,t+653ms),"obstacle ahead blocks forward");
+    Motion back; back.v=-0.05;
+    check(gate.applyMotion(Source::manual,back,t+654ms),"obstacle ahead still allows reverse");
+    Motion steer; steer.kappa=0.5;
+    check(gate.applyMotion(Source::manual,steer,t+655ms),"obstacle ahead still allows steering only");
+    gate.localBlocked(false,false,true,t+656ms);
+    check(!gate.applyMotion(Source::manual,back,t+657ms),"stale scan blocks every direction");
+    gate.setControlMode(ControlMode::autonomous,t+658ms);
     gate.localBlocked(false,t+660ms);
     check(gate.applyMotion(Source::autonomous,m,t+660ms),"clear lidar allows motion");
     check(rover::protocol::isValid(rover::protocol::parseCommand(

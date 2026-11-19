@@ -258,14 +258,12 @@ public:
         const double scanAge =
             scan.valid ? std::chrono::duration<double>(now - scan.stamp).count() : 1e9;
 
-        const auto gateStatus = gate_.status(now);
-        const auto outWheels = gateStatus.output;
-        const bool forward = outWheels.dutyLeft * gate_.geometry().motorSign[0] + outWheels.dutyRight * gate_.geometry().motorSign[1] >= 0;
+        // LiDAR stop box per direction: a blocked side only stops motion toward it, so the
+        // rover can still back away (manual and autonomous). A stale scan blocks everything.
         const bool stale = !scan.valid || scanAge > config_.follower.scanMaxAge;
-        const double travel = outWheels.dutyLeft * gate_.geometry().motorSign[0] + outWheels.dutyRight * gate_.geometry().motorSign[1];
-        const bool nearby = nav::PathFollower::blockedByScan(config_.follower,scan,forward) ||
-            (std::fabs(travel)<1e-6 && nav::PathFollower::blockedByScan(config_.follower,scan,!forward));
-        gate_.localBlocked(stale || nearby,now);
+        gate_.localBlocked(nav::PathFollower::blockedByScan(config_.follower, scan, true),
+                           nav::PathFollower::blockedByScan(config_.follower, scan, false),
+                           stale, now);
         nav::FollowOutput out;
         {
             std::lock_guard<std::mutex> lock(poseMutex_);
@@ -488,6 +486,7 @@ int main(int argc, char* argv[]) {
     std::cout.setf(std::ios::unitbuf);
     std::signal(SIGINT, requestStop);
     std::signal(SIGTERM, requestStop);
+    std::signal(SIGHUP, requestStop);  // SSH session closed: stop cleanly (E-stop the Pico)
     std::signal(SIGPIPE, SIG_IGN);
 
     Runtime runtime(settings, config);
