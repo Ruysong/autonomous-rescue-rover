@@ -198,6 +198,8 @@ def validate_message(message: Mapping[str, Any]) -> None:
         ranges = message.get("ranges_mm")
         if not isinstance(ranges, list) or len(ranges) != 360:
             raise ProtocolError("ranges_mm must have 360 values")
+        if any(type(value) is not int or not 0 <= value <= 65535 for value in ranges):
+            raise ProtocolError("ranges_mm must contain unsigned 16-bit millimeter values")
     elif message_type == "telemetry":
         _finite_number("timestamp", message.get("timestamp"))
         _finite_in_range("motor_speed", message.get("motor_speed"))

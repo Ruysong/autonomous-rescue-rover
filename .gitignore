@@ -221,6 +221,7 @@ __marimo__/
 
 # RoverAid run logs and saved maps (laptop/navigation/run_explore.py)
 /logs/
+/RoverAid Demo.exe
 
 # Local AI assets
 /models/

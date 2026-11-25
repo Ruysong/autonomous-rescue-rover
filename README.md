@@ -6,6 +6,8 @@ We are building a 3D-printed, six-wheel rover for indoor disaster exploration. T
 
 ## 사용 방법 (요약)
 
+**최종 시연 (Windows)** · Qwen, Foxglove, 로버 연결을 함께 시작하는 [시연 실행 및 촬영 가이드](docs/FINAL_DEMO.md).
+
 명령만 모았다. 이유 · 옵션 · 확인 기록은 각 줄의 상세 문서에 있다. 배터리(3S LiPo)는 로버 옆에 사람이 있을 때만 꽂는다.
 
 ### 1. 준비

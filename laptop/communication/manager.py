@@ -38,6 +38,7 @@ class CommunicationManager:
         self._running = threading.Event()
         self._command_lock = threading.Lock()
         self._command_socket: socket.socket | None = None
+        self._command_generation = 0
         self._telemetry_socket: socket.socket | None = None
         self._listeners: list[socket.socket] = []
         self._threads: list[threading.Thread] = []
@@ -104,9 +105,11 @@ class CommunicationManager:
             except OSError:
                 break
 
+            connection.settimeout(0.2)
             with self._command_lock:
                 self._close(self._command_socket)
                 self._command_socket = connection
+                self._command_generation += 1
             print(f"[Command] Pi connected from {address[0]}")
 
     def _accept_telemetry(self, listener: socket.socket) -> None:
@@ -187,3 +190,8 @@ class CommunicationManager:
     def robot_connected(self) -> bool:
         with self._command_lock:
             return self._command_socket is not None
+
+    @property
+    def command_generation(self) -> int:
+        with self._command_lock:
+            return self._command_generation

@@ -4,3 +4,4 @@ ultralytics>=8.4
 pillow>=10
 pygame>=2.5
 foxglove-sdk>=0.31
+lap>=0.5.12

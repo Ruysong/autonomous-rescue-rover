@@ -30,7 +30,7 @@ class VisualGuard:
         self.first_frame=None
         self.hold_reason=None
 
-    def update(self, people, frame_at, forward=True):
+    def update(self, people, frame_at, forward=True, *, latch_stale=True):
         now=self.clock(); c=self.config
         fresh=frame_at is not None and 0 <= now-frame_at <= c.max_frame_age_s
         risky=False; caution=False
@@ -48,7 +48,7 @@ class VisualGuard:
         if risky:
             if self.since is None:self.since=now;self.first_frame=frame_at
         else:self.since=None;self.first_frame=None
-        danger=not fresh or (self.since is not None and frame_at-self.first_frame>=c.persistence_s)
+        danger=(latch_stale and not fresh) or (self.since is not None and frame_at-self.first_frame>=c.persistence_s)
         if danger:
             self.latched=True
             self.hold_reason='Video stale / unavailable' if not fresh else 'Forward visual zone occupied'

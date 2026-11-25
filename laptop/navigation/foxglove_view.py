@@ -153,7 +153,7 @@ class FoxgloveView:
                                                     data=jpg.tobytes(), format="jpeg"))
 
     def publish_status(self, telemetry: dict, guard=None, vision: bool = False, selector=None,
-                       explorer=None) -> None:
+                       explorer=None, mission: dict | None = None) -> None:
         t = telemetry or {}
         flags = int((t.get("pico") or {}).get("flags", 0) or 0)
         pose = t.get("map_pose") or t.get("odom_pose") or [0.0, 0.0, 0.0]
@@ -182,6 +182,7 @@ class FoxgloveView:
             "encoder_l": enc[0], "encoder_r": enc[1],
         })
         foxglove.log("/mission", {
+            **(mission or {}),
             "vision": (guard.level if vision else "off") if guard is not None else "off",
             "vision_reason": guard.reason if (guard is not None and vision) else "",
             "ai": selector.status if selector else "rule baseline (LLM off)",
