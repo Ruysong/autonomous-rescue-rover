@@ -15,7 +15,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_final_demo.p
 
 1. 게임패드를 연결한다. Pi에 기존 `~/rover_demo/build/rover_controller`, `~/hw_test/cam_stream.py`, 카메라·LiDAR·Pico가 준비되어 있어야 한다. Pi에 접속할 SSH 키와 네트워크도 연결한다.
 2. 같은 로버를 제어하는 세션을 종료한 뒤, 로버 옆에서 물리 정지를 맡을 사람과 주행 구간을 확인한다. `RoverAid Demo.exe`를 열고 `LIVE`를 입력한다. 기본 SSH 대상 또는 디렉터리가 다르면 `-Rover`, `-RemoteDir`를 준다. 별도 영상 URL이 있으면 `-PersonSource`로 넘긴다.
-3. 런처가 Pi 컨트롤러와 카메라를 연결하고 노트북에서 YOLO Pose, Qwen, Foxglove WebSocket을 함께 시작한다. Qwen의 `ready` 로그와 카메라·LiDAR 상태를 확인한다. Foxglove Desktop에서 `ws://127.0.0.1:8765`를 연결하고 `docs/foxglove/roveraid_layout.json`을 한 번 가져온다. 설치된 Desktop은 런처가 연결 URL을 연다.
+3. 런처가 Pi 컨트롤러와 카메라를 연결하고 노트북에서 YOLO Pose, Qwen, Foxglove WebSocket을 함께 시작한다. Qwen의 `ready` 로그와 카메라·LiDAR 상태를 확인한다. 런처가 Foxglove Desktop에서 `ws://127.0.0.1:8765`를 열며, 새 설치에서는 로그인 후 `docs/foxglove/roveraid_layout.json`을 한 번 가져온다. 준비 중에도 RoverAid 창에서 영상, 지도와 제어 상태를 볼 수 있다.
 4. 조작은 RoverAid 창에서 한다. **MANUAL (M)** → 게임패드 **LB**를 잡고 왼쪽 스틱, **START / AUTO (Space)** → 자율주행, **PAUSE** → 경로 취소, **E-STOP (E 또는 Back)** → 정지 잠금, **Q** → 종료. E-stop·보호 정지 또는 연결 재수립 후에는 상태를 확인하고 다시 모드를 직접 선택한다.
 
 `-LaptopOnly -PersonSource <영상 파일>`는 노트북 영상·추론 화면을 확인하는 모드다. 설치할 때는 [Foxglove 공식 다운로드](https://foxglove.dev/download)를 사용한다.
