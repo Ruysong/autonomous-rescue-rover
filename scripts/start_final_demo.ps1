@@ -7,6 +7,7 @@ param(
     [ValidateRange(0, 600)] [int]$Seconds = 0,
     [string]$PythonPath = $env:ROVER_PYTHON,
     [string]$AIAssets = $env:ROVER_AI_ASSETS,
+    [string]$FoxglovePath = $env:ROVER_FOXGLOVE,
     [string]$PersonSource = '',
     [string]$Rover = $(if ($env:ROVER_SSH) { $env:ROVER_SSH } else { 'rover@rover' }),
     [string]$RemoteDir = $(if ($env:ROVER_DIR) { $env:ROVER_DIR } else { '~/rover_demo' })
@@ -50,10 +51,23 @@ foreach ($relative in @('models\yolo26n-pose.pt', 'models\Qwen3VL-2B-Instruct-Q4
 if ($LASTEXITCODE) { throw 'Install laptop/requirements.txt in the selected Python environment.' }
 Write-Host 'Python demo dependencies OK'
 
-$foxgloveInstalled = Test-Path Registry::HKEY_CLASSES_ROOT\foxglove
+if (!$FoxglovePath) {
+    foreach ($relative in @('Programs\desktop\Foxglove.exe', 'Programs\Foxglove\Foxglove.exe',
+                            'Programs\foxglove-studio\Foxglove Studio.exe')) {
+        $candidate = Join-Path $env:LOCALAPPDATA $relative
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            $FoxglovePath = $candidate
+            break
+        }
+    }
+}
+if ($FoxglovePath) { $FoxglovePath = (Resolve-Path -LiteralPath $FoxglovePath).Path }
+$foxgloveInstalled = $FoxglovePath -or (Test-Path Registry::HKEY_CLASSES_ROOT\foxglove)
 Write-Host "Python: $PythonPath"
 Write-Host "AI assets: $AIAssets"
-if (!$foxgloveInstalled) {
+if ($FoxglovePath) {
+    Write-Host "Foxglove: $FoxglovePath"
+} elseif (!$foxgloveInstalled) {
     Write-Host 'Open Foxglove manually at ws://127.0.0.1:8765. Import docs/foxglove/roveraid_layout.json once.'
 }
 if ($Check) { exit 0 }
@@ -105,12 +119,15 @@ try {
 
     if ($foxgloveInstalled -and !$NoFoxgloveOpen) {
         # Dispatch after the WebSocket listener has started.
-        $openJob = Start-Job -ScriptBlock {
+        $openJob = Start-Job -ArgumentList @($FoxglovePath) -ScriptBlock {
+            param([string]$Executable)
+            $uri = 'foxglove://open?ds=foxglove-websocket&ds.url=ws://127.0.0.1:8765/'
             for ($i = 0; $i -lt 50; $i++) {
                 $c = New-Object System.Net.Sockets.TcpClient
                 try {
                     if ($c.ConnectAsync('127.0.0.1', 8765).Wait(100) -and $c.Connected) {
-                        Start-Process 'foxglove://open?ds=foxglove-websocket&ds.url=ws%3A%2F%2F127.0.0.1%3A8765%2F'
+                        if ($Executable) { Start-Process -FilePath $Executable -ArgumentList $uri }
+                        else { Start-Process $uri }
                         return
                     }
                 } catch {} finally { $c.Dispose() }
