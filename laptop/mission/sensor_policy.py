@@ -13,6 +13,27 @@ class SensorState:
     speed_limit: float
 
 
+class VisionRecovery:
+    """Require multiple fresh inference samples before releasing a vision pause."""
+
+    def __init__(self, stable_seconds=0.75):
+        self.stable_seconds = stable_seconds
+        self.first = self.last = None
+        self.frames = 0
+
+    def update(self, frame_at):
+        if frame_at is None:
+            self.first = self.last = None
+            self.frames = 0
+            return False
+        if frame_at != self.last:
+            if self.first is None:
+                self.first = frame_at
+            self.last = frame_at
+            self.frames += 1
+        return self.frames >= 3 and self.last - self.first >= self.stable_seconds
+
+
 class SensorPolicy:
     def __init__(self, decide, *, event, dark_luma=24, bright_luma=42,
                  dark_seconds=0.8, bright_seconds=1.0, lidar_speed=0.05):

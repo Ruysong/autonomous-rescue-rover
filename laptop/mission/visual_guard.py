@@ -26,7 +26,7 @@ class VisualGuard:
     def __init__(self, config=None, clock=time.monotonic):
         self.config=config or GuardConfig(); self.clock=clock
         self.level='observing'; self.reason='No person in protection zone'
-        self.since=None; self.clear_since=None; self.latched=False
+        self.since=None; self.clear_since=None; self.clear_until=None; self.latched=False
         self.first_frame=None
         self.hold_reason=None
 
@@ -53,13 +53,19 @@ class VisualGuard:
             self.latched=True
             self.hold_reason='Video stale / unavailable' if not fresh else 'Forward visual zone occupied'
         if fresh and not caution and not risky:
-            if self.clear_since is None:self.clear_since=now
-        else:self.clear_since=None
+            if self.clear_until is None or frame_at-self.clear_until > c.max_frame_age_s:
+                self.clear_since = frame_at
+            self.clear_until = frame_at
+        else:
+            self.clear_since = self.clear_until = None
         self.level='hold' if self.latched else 'caution' if caution else 'observing'
         self.reason=self.hold_reason if self.latched else ('Person entering forward zone' if caution else 'Observations only')
         return self.level
 
     def resume(self):
-        if self.clear_since is None or self.clock()-self.clear_since<self.config.clear_s:return False
+        if (self.clear_since is None or self.clear_until is None
+                or self.clear_until-self.clear_since < self.config.clear_s
+                or not 0 <= self.clock()-self.clear_until <= self.config.max_frame_age_s):
+            return False
         self.latched=False;self.since=None;self.hold_reason=None
         return True

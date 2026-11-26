@@ -6,7 +6,7 @@ import pytest
 
 from laptop.mission.person_alert import PersonAlerts
 from laptop.mission.protection_link import ProtectionLink
-from laptop.mission.sensor_policy import SensorPolicy
+from laptop.mission.sensor_policy import SensorPolicy, VisionRecovery
 from laptop.mission.visual_guard import VisualGuard
 from laptop.perception.person_detector import posture
 
@@ -76,9 +76,26 @@ def test_video_jitter_pauses_without_clearing_existing_latch():
     assert guard.update([], None, latch_stale=False) == "hold"
     assert not guard.resume()
     guard.update([], 10.0)
+    elapsed[0] = 10.5
+    guard.update([], 10.5)
     elapsed[0] = 11.01
     guard.update([], 11.0)
     assert guard.resume()
+
+
+def test_camera_recovery_waits_for_stable_fresh_results():
+    recovery = VisionRecovery()
+    assert not recovery.update(10.0)
+    assert not recovery.update(10.0)  # the last successful frame does not count twice
+    assert not recovery.update(10.3)
+    assert recovery.update(10.75)
+    assert not recovery.update(None)
+    assert not recovery.update(12.0)
+    assert not recovery.update(12.80)  # two isolated good frames are insufficient
+    assert not recovery.update(None)
+    assert not recovery.update(13.0)
+    assert not recovery.update(13.25)
+    assert recovery.update(13.80)
 
 
 def test_person_alert_uses_new_frames_and_one_track_id(tmp_path):

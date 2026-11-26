@@ -112,17 +112,21 @@ class FoxgloveView:
             entities.append(self._line("path", now, st.path, _color(0.1, 0.8, 0.3), 0.05))
         spheres, texts = [], []
         for f in st.frontiers:
+            if st.goal is not None and f.id == st.goal.id:
+                continue
             spheres.append(SpherePrimitive(pose=_pose(f.x, f.y, 0.05), size=Vector3(x=0.15, y=0.15, z=0.15),
                                            color=_color(1.0, 0.6, 0.0, 0.9)))
             texts.append(TextPrimitive(pose=_pose(f.x, f.y, 0.35), billboard=True, font_size=14.0,
-                                       scale_invariant=True, color=_color(1, 1, 1), text=str(f.id)))
+                                       scale_invariant=True, color=_color(1, 1, 1), text=f"F{f.id}"))
         if st.goal is not None:
+            chosen_color = _color(0.45, 1.0, 0.86) if st.ai_goal else _color(1.0, 0.6, 0.0)
+            label = f"Qwen target F{st.goal.id}" if st.ai_goal else f"Goal F{st.goal.id}"
             spheres.append(SpherePrimitive(pose=_pose(st.goal.x, st.goal.y, 0.1),
                                            size=Vector3(x=0.35, y=0.35, z=0.35),
-                                           color=_color(0.9, 0.1, 0.1, 0.9)))
+                                           color=chosen_color))
             texts.append(TextPrimitive(pose=_pose(st.goal.x, st.goal.y, 0.6), billboard=True,
-                                       font_size=16.0, scale_invariant=True,
-                                       color=_color(1, 0.3, 0.3), text=f"goal {st.goal.id}"))
+                                       font_size=23.0, scale_invariant=True,
+                                       color=chosen_color, text=label))
         entities.append(SceneEntity(timestamp=now, frame_id="map", id="frontiers",
                                     spheres=spheres, texts=texts))
         foxglove.log("/markers", SceneUpdate(entities=entities))

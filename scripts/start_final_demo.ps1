@@ -78,6 +78,29 @@ function Test-LocalPort([int]$Port) {
     catch { return $false }
     finally { $client.Dispose() }
 }
+
+function Resolve-RoverTarget([string]$Target) {
+    if ($Target -ne 'rover@rover') { return $Target }
+    try {
+        if ([System.Net.Dns]::GetHostAddresses('rover').Length) { return $Target }
+    } catch [System.Net.Sockets.SocketException] {}
+    $tailscale = Get-Command tailscale.exe -ErrorAction SilentlyContinue
+    if ($tailscale) {
+        $statusJson = & $tailscale.Source status --json 2>$null
+        if (!$LASTEXITCODE -and $statusJson) {
+            $status = $statusJson | ConvertFrom-Json
+            $roverPeers = @($status.Peer.PSObject.Properties.Value | Where-Object { $_.HostName -ieq 'rover' })
+            if ($status.BackendState -eq 'Running' -and $roverPeers.Count -eq 1) {
+                $ip = $roverPeers[0].TailscaleIPs | Where-Object {
+                    $_ -match '^100\.\d{1,3}\.\d{1,3}\.\d{1,3}$'
+                } | Select-Object -First 1
+                if ($ip) { return "rover@$ip" }
+            }
+        }
+    }
+    throw 'Cannot resolve rover. Connect Tailscale or pass -Rover rover@<IP>.'
+}
+
 $ports = @(9998, 9997, 8765)
 if ($Live -and !$PersonSource) { $ports += 8088 }
 foreach ($port in $ports) {
@@ -87,6 +110,7 @@ foreach ($port in $ports) {
 $sshProc = $cameraProc = $openJob = $null
 try {
     if ($Live) {
+        $Rover = Resolve-RoverTarget $Rover
         if ($Rover -notmatch '^[A-Za-z0-9_][A-Za-z0-9_.@-]*$' -or
             $RemoteDir -notmatch '^(~/|/)?[A-Za-z0-9_][A-Za-z0-9_./-]*$') { throw 'Invalid rover host or directory.' }
         $cameraStart = ''
@@ -112,6 +136,7 @@ try {
         $sshStart = @{ ArgumentList=$sshArgs; PassThru=$true; WindowStyle='Hidden';
             RedirectStandardOutput="$sshLog.txt"; RedirectStandardError="$sshLog.err.txt" }
         $sshProc = Start-Process ssh.exe @sshStart
+        Write-Host "Pi: $Rover"
         Write-Host "Pi output: $sshLog.txt"
     } elseif (!$PersonSource) {
         $PersonSource = '0'

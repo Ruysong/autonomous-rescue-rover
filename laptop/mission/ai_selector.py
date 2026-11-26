@@ -21,6 +21,7 @@ class AISelector:
         self.observations = deque(maxlen=120)
         self.history = deque(maxlen=20)
         self.serial = 0
+        self.last_selection = None
 
     def observe(self, people, now=None):
         now = self.clock() if now is None else now
@@ -29,12 +30,14 @@ class AISelector:
     def invalidate(self):
         self.generation += 1
         self.status = 'AI cancelled / holding'
+        self.last_selection = None
 
     def close(self):
         self.closed = True
         self.invalidate()
 
     def choose(self, candidates, context):
+        self.last_selection = None
         now = self.clock()
         while not self.results.empty():
             generation, started, snapshot, answer, error = self.results.get_nowait()
@@ -64,8 +67,12 @@ class AISelector:
                 self.status='Selected frontier vanished; reviewing again'; continue
             self.status=f'AI chose F{current.id}: {reason}'
             self.history.append({'x':current.x,'y':current.y,'reason':reason})
-            self.event('ai_selected',{'snapshot':snapshot['snapshot_id'],'candidate_id':current.id,
-                                    'x':current.x,'y':current.y,'reason':reason,'seconds':now-started})
+            self.last_selection = {
+                'snapshot': snapshot['snapshot_id'], 'candidate_id': current.id,
+                'model_candidate_id': selected, 'candidates_reviewed': len(snapshot['candidates']),
+                'x': current.x, 'y': current.y, 'reason': reason, 'seconds': now - started,
+            }
+            self.event('ai_selected', self.last_selection)
             return current.id
         if self.closed or self.busy or now < self.retry_at or not candidates:
             return None
@@ -76,7 +83,7 @@ class AISelector:
                            'bearing_rad':f.bearing,'relative_direction':'left' if f.bearing>.25 else 'right' if f.bearing<-.25 else 'ahead','boundary_cells':f.size,
                            'failed_attempts':context.get('attempts',{}).get(f.id,0)} for f in candidates],
             'recent_observations':recent[-10:], 'previous_choices':list(self.history),'goal_results':copy.deepcopy(context.get('goal_results',[]))}
-        self.busy=True; self.status=f'AI reviewing {len(candidates)} candidates...'
+        self.busy=True; self.status=f'Qwen reviewing {len(candidates)} candidates...'
         self.event('ai_request',snapshot)
         threading.Thread(target=self._run,args=(self.generation,now,snapshot),daemon=True).start()
         return None

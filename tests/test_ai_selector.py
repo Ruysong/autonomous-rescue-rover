@@ -20,11 +20,14 @@ class SelectorTests(unittest.TestCase):
         self.assertTrue(s.busy);release.set();self.finish(s)
         cs[1].id=8
         self.assertEqual(s.choose(cs,{'pose':[0,0,0]}),8)
+        self.assertEqual(s.last_selection['model_candidate_id'], 2)
+        self.assertEqual(s.last_selection['candidate_id'], 8)
     def test_invalid_id_holds_without_fallback(self):
         s=AISelector(lambda _: {'candidate_id':999,'reason':'Invalid'})
         s.choose(self.candidates(),{'pose':[0,0,0]});self.finish(s)
         self.assertIsNone(s.choose(self.candidates(),{'pose':[0,0,0]}))
         self.assertIn('rejected',s.status)
+        self.assertIsNone(s.last_selection)
     def test_bool_id_rejected(self):
         s=AISelector(lambda _: {'candidate_id':True,'reason':'Invalid'})
         s.choose(self.candidates(),{'pose':[0,0,0]});self.finish(s)

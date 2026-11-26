@@ -44,6 +44,7 @@ class ExplorerStatus:
     goal: Frontier | None = None
     path: list[tuple] = field(default_factory=list)
     frontiers: list[Frontier] = field(default_factory=list)
+    ai_goal: dict[str, Any] | None = None
 
 
 class Explorer:
@@ -94,6 +95,7 @@ class Explorer:
         self.status.note = note
         self.status.goal = None
         self.status.path = []
+        self.status.ai_goal = None
         self._path_id += 1
         self.send(make_path([], self._path_id))
 
@@ -168,16 +170,20 @@ class Explorer:
                 self.status.done = True
                 self.status.active = False
                 self.status.goal = None
+                self.status.ai_goal = None
                 self.status.note = "exploration done (no reachable frontier)"
                 self._path_id += 1
                 self.send(make_path([], self._path_id))
                 return
             choice = None
+            ai_goal = None
             old = self.status.goal
             follow_state = self.telemetry.get('follow',{}).get('state')
             if old is not None and follow_state not in ('reached','blocked','idle','no_scan'):
                 same = min(candidates,key=lambda f:math.hypot(f.x-old.x,f.y-old.y))
-                if math.hypot(same.x-old.x,same.y-old.y) < .4: choice = same.id
+                if math.hypot(same.x-old.x,same.y-old.y) < .4:
+                    choice = same.id
+                    ai_goal = self.status.ai_goal
             if choice is None and self.selector is not None:
                 try:
                     choose = getattr(self.selector,'choose',self.selector)
@@ -186,8 +192,12 @@ class Explorer:
                 except Exception as error:
                     self.status.note = f"selector error: {error}"
                 if choice not in {f.id for f in candidates}: choice = None
+                selection = getattr(self.selector, 'last_selection', None)
+                if selection is not None and selection['candidate_id'] == choice:
+                    ai_goal = selection
                 if choice is None and getattr(self.selector,'strict',False):
                     self.status.note = self.selector.status
+                    self.status.ai_goal = None
                     if self.status.path:
                         self.status.path=[]; self.status.goal=None
                         self._path_id+=1; self.send(make_path([],self._path_id))
@@ -205,4 +215,6 @@ class Explorer:
         self.status.path = points
         self.status.note = (f"frontier {goal.id}/{len(candidates)} "
                             f"cost {goal.distance:.1f}, {len(points)} pts")
-        self.send(make_path(points, self._path_id, self.config.speed))
+        sent = self.send(make_path(points, self._path_id, self.config.speed))
+        self.status.ai_goal = ({**ai_goal, 'candidate_id': goal.id, 'x': goal.x, 'y': goal.y}
+                               if ai_goal and sent else None)

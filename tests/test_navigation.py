@@ -111,6 +111,7 @@ class AsyncExplorerTests(unittest.TestCase):
         ex.on_telemetry({'control_mode':'autonomous','estop':False,'follow':{'state':'idle'}})
         ex.start();ex.tick()
         self.assertFalse(any(m['type']=='path' and m['points'] for m in sent))
+        self.assertIsNone(ex.status.ai_goal)
         # Scan callbacks still run while the actual model worker is blocked.
         ex.on_scan({'odom_pose':[0,0,0],'ranges_mm':cast((0,0,0))})
         release.set()
@@ -118,7 +119,10 @@ class AsyncExplorerTests(unittest.TestCase):
         while selector.results.empty() and time.monotonic()<deadline:time.sleep(.01)
         ex.tick()
         self.assertTrue(any(m['type']=='path' and m['points'] for m in sent))
+        self.assertEqual(ex.status.ai_goal['candidate_id'], ex.status.goal.id)
+        self.assertEqual(ex.status.ai_goal['reason'], 'Low travel cost')
         ex.pause();self.assertFalse(sent[-1]['points'])
+        self.assertIsNone(ex.status.ai_goal)
 
 class ExplorerTests(unittest.TestCase):
     def test_sends_path_only_in_autonomous_mode(self):
@@ -148,6 +152,7 @@ class ExplorerTests(unittest.TestCase):
         ex.on_telemetry({"control_mode": "autonomous", "follow": {"state": "idle"}})
         ex.tick()
         self.assertTrue(any(m["type"] == "path" and m["points"] for m in sent))
+        self.assertIsNone(ex.status.ai_goal)
 
 
 class MessageTests(unittest.TestCase):

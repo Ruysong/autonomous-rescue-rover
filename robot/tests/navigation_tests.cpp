@@ -134,6 +134,18 @@ void testFollower() {
 
     auto blocked = emptyScan();
     blocked.rangesMm[0] = 450;  // 0.45 m ahead, body front 0.36 + 0.25
+    check(PathFollower::blockedByScan(f.config, blocked, true), "close front point blocks forward");
+    check(!PathFollower::blockedByScan(f.config, blocked, false), "front point allows reverse");
+    auto farFront = emptyScan();
+    farFront.rangesMm[0] = 730;
+    check(!PathFollower::blockedByScan(f.config, farFront, true), "clearance beyond stop box allows forward");
+    auto sideWall = emptyScan();
+    sideWall.rangesMm[50] = 700;  // x is in range, but y is outside the vehicle width.
+    check(!PathFollower::blockedByScan(f.config, sideWall, true), "side wall outside the box allows forward");
+    auto rear = emptyScan();
+    rear.rangesMm[180] = 480;
+    check(PathFollower::blockedByScan(f.config, rear, false), "close rear point blocks reverse");
+    check(!PathFollower::blockedByScan(f.config, rear, true), "rear point allows forward");
     out = f.step({0, 0, 0}, blocked, 0.0);
     check(!out.active && out.stop && f.state() == FollowState::blocked, "blocked by LiDAR");
     out = f.step({0, 0, 0}, blocked, 0.0);
